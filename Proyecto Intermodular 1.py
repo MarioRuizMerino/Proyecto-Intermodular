@@ -3,26 +3,28 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
-import time
+
 from getpass import getpass
-import json
-import requests
 from bs4 import BeautifulSoup
+import tkinter as tk
+from tkinter import ttk
+import json
 import os
 
 # === CONFIG ===
 MOODLE_URL = "https://educacionadistancia.juntadeandalucia.es/centros/malaga/login/index.php"
 MOODLE_BASE = "https://educacionadistancia.juntadeandalucia.es/centros/malaga"
-username = os.environ.get("USERNAME")
-COOKIES_PATH = fr"C:\Users\{username}\Desktop\moodle_cookies.json"
 
+username = os.environ.get("USERNAME")
+COOKIES_PATH = fr"C:\Users\{username}\moodle_cookies.json"
+
+# Pedir credenciales
 USERNAME = input("Pon tu usuario: ")
 PASSWORD = getpass("Pon tu contraseña: ")
 
 # === SETUP SELENIUM ===
 chrome_options = Options()
-
-# Descomentar si quieres que no se vea el navegador
+# Si quieres que no se vea el navegador, descomenta:
 # chrome_options.add_argument("--headless=new")
 # chrome_options.add_argument("--no-sandbox")
 # chrome_options.add_argument("--disable-dev-shm-usage")
@@ -32,68 +34,40 @@ driver = webdriver.Chrome(
     options=chrome_options
 )
 
-# Step 1: Open Moodle login page
+# ======= LOGIN EN MOODLE (CAS) =======
 driver.get(MOODLE_URL)
 
-# Step 2: Click CAS login button (Acceso Único Educación)
+# Botón "Acceso Único Educación"
 cas_button = driver.find_element(By.CSS_SELECTOR, "a.btn.btn-primary")
 cas_button.click()
 
-# Step 3: Fill in CAS username and password
+# Usuario y contraseña CAS
 driver.find_element(By.ID, "username").send_keys(USERNAME)
 driver.find_element(By.ID, "password").send_keys(PASSWORD)
 
-# Step 4: Submit the form
+# Enviar formulario
 driver.find_element(By.NAME, "submit").click()
 
 print("Ya casi estás!")
 
-# ======= EXTRAER Y GUARDAR COOKIES =======
+# ======= GUARDAR COOKIES (OPCIONAL) =======
 cookies = driver.get_cookies()
-
 with open(COOKIES_PATH, "w", encoding="utf-8") as f:
     json.dump(cookies, f, indent=4, ensure_ascii=False)
 
 print(f"Cookies guardadas en: {COOKIES_PATH}")
 
-driver.quit()
+# ======= IR AL ÁREA PERSONAL CON SELENIUM =======
+driver.get(f"{MOODLE_BASE}/my/")
+print("URL actual en Selenium:", driver.current_url)
+html_home = driver.page_source
+print(html_home[:1000])  # Solo para depurar
 
-# ======= USAR COOKIES CON REQUESTS =======
-with open(COOKIES_PATH, "r", encoding="utf-8") as f:
-    selenium_cookies = json.load(f)
-
-session = requests.Session()
-for c in selenium_cookies:
-    # incluir dominio y path mejora que las acepte bien
-    session.cookies.set(
-        c["name"],
-        c["value"],
-        domain=c.get("domain"),
-        path=c.get("path")
-    )
-
-# Área personal (para luego sacar cursos del HTML)
-def get_home_html():
-    url = f"{MOODLE_BASE}/my/"
-    r = session.get(url)
-    print("URL devuelta por /my/:", r.url)  # para comprobar si redirige al login
-    return r.text
-
-html_home = get_home_html()
-print(html_home[:1000])
-
-# Descargar deberes
-def get_assignments(courseid):
-    url = f"{MOODLE_BASE}/mod/assign/index.php?id={courseid}"
-    r = session.get(url)
-    return r.text  # HTML con los enlaces a tareas
-
-
+# ======= PARSEAR CURSOS =======
 def parse_courses(html):
     soup = BeautifulSoup(html, "html.parser")
     courses = []
-    # Ajusta los selectores a cómo se ve tu Moodle.
-    # Suele haber bloques de cursos con enlaces a /course/view.php?id=XXX
+    # Ajusta el selector si tu Moodle usa otra estructura
     for a in soup.select('a[href*="/course/view.php?id="]'):
         name = a.get_text(strip=True)
         href = a["href"]
@@ -105,30 +79,27 @@ print("Cursos encontrados:")
 for c in courses:
     print("-", c["name"], "->", c["url"])
 
+# ======= OBTENER TAREAS DE CADA CURSO USANDO SELENIUM =======
 def get_assignments_html(course_url):
-    r = session.get(course_url)
-    return r.text
+    driver.get(course_url)
+    return driver.page_source
 
 def parse_assignments(html):
     soup = BeautifulSoup(html, "html.parser")
     assignments = []
-    # En muchos Moodles, las tareas son enlaces a /mod/assign/view.php
+    # En muchos Moodles, las tareas son enlaces a /mod/assign/view.php?id=XXX
     for a in soup.select('a[href*="/mod/assign/view.php?id="]'):
         name = a.get_text(strip=True)
         href = a["href"]
         assignments.append({"name": name, "url": href})
     return assignments
 
-
-import tkinter as tk
-from tkinter import ttk
-
 # Construir estructura: cursos + tareas
 for c in courses:
     html_course = get_assignments_html(c["url"])
     c["assignments"] = parse_assignments(html_course)
 
-# ==== INTERFAZ ====
+# ======= INTERFAZ TKINTER =======
 root = tk.Tk()
 root.title("Cursos y tareas - Moodle")
 
@@ -140,16 +111,17 @@ tree.heading("#0", text="Nombre")
 tree.heading("tipo", text="Tipo")
 
 # Insertar cursos y tareas
-for i, c in enumerate(courses):
+for c in courses:
     cid = tree.insert("", "end", text=c["name"], values=("Curso",))
     for a in c.get("assignments", []):
         tree.insert(cid, "end", text=a["name"], values=("Tarea",))
 
 tree.pack(fill="both", expand=True)
 
-# Campo modificable (ejemplo: notas o comentarios)
+# Campo modificable (comentarios)
 label = tk.Label(root, text="Comentario seleccionado:")
 label.pack(anchor="w", padx=5, pady=5)
+
 text = tk.Text(root, height=4)
 text.pack(fill="x", padx=5, pady=5)
 
@@ -161,4 +133,8 @@ def on_select(event):
 
 tree.bind("<<TreeviewSelect>>", on_select)
 
+# Importante: no cierres Selenium antes de terminar de scrapear
 root.mainloop()
+
+# Cuando cierres la interfaz, ya puedes cerrar el navegador
+driver.quit()
