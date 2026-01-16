@@ -11,10 +11,56 @@ from tkinter import ttk
 import json
 import os
 
-# === CONFIG ===
-MOODLE_URL = "https://educacionadistancia.juntadeandalucia.es/centros/malaga/login/index.php"
-MOODLE_BASE = "https://educacionadistancia.juntadeandalucia.es/centros/malaga"
+#======== PROVINCIAS =========
 
+PROVINCIAS = {
+    "Málaga": "malaga",
+    "Sevilla": "sevilla",
+    "Cádiz": "cadiz",
+    "Huelva": "huelva",
+    "Córdoba": "cordoba",
+    "Granada": "granada",
+    "Jaén": "jaen",
+    "Almería": "almeria",
+}
+
+def construir_urls(slug_provincia):
+    base = f"https://educacionadistancia.juntadeandalucia.es/centros/{slug_provincia}"
+    return (
+        f"{base}/login/index.php",  # MOODLE_URL
+        base                        # MOODLE_BASE
+    )
+
+def seleccionar_provincia():
+    ventana = tk.Tk()
+    ventana.title("Selecciona provincia")
+
+    tk.Label(ventana, text="Provincia:").pack(padx=10, pady=5)
+
+    provincia_var = tk.StringVar()
+    combo = ttk.Combobox(ventana, textvariable=provincia_var, state="readonly")
+    combo["values"] = list(PROVINCIAS.keys())
+    combo.current(0) 
+    combo.pack(padx=10, pady=5)
+
+    def confirmar():
+        ventana.selected_provincia = provincia_var.get()
+        ventana.destroy()
+
+    tk.Button(ventana, text="Aceptar", command=confirmar).pack(padx=10, pady=10)
+
+    ventana.mainloop()
+    return getattr(ventana, "selected_provincia", None)
+
+# ===================== SELECCIÓN DE PROVINCIA =====================
+
+provincia_nombre = seleccionar_provincia()
+if provincia_nombre is None:
+    raise SystemExit("No se seleccionó provincia")
+
+slug = PROVINCIAS[provincia_nombre]
+MOODLE_URL, MOODLE_BASE = construir_urls(slug)
+print("Usando provincia:", provincia_nombre, "->", MOODLE_BASE)
 username = os.environ.get("USERNAME")
 COOKIES_PATH = fr"C:\Users\{username}\moodle_cookies.json"
 
