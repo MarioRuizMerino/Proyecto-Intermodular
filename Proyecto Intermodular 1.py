@@ -146,9 +146,71 @@ for c in courses:
     c["assignments"] = parse_assignments(html_course)
 
 # ======= INTERFAZ TKINTER =======
+
+# ===== TEMAS =====
+TEMAS = {
+    "oscuro": {
+        "BG": "#121212",
+        "FG": "#EEEEEE",
+        "ACCENT": "#1E88E5",
+        "TREE_BG": "#1E1E1E",
+        "TEXT_BG": "#1E1E1E"
+    },
+    "claro": {
+        "BG": "#F5F5F5",
+        "FG": "#222222",
+        "ACCENT": "#1976D2",
+        "TREE_BG": "#FFFFFF",
+        "TEXT_BG": "#FFFFFF"
+    }
+}
+
 root = tk.Tk()
 root.title("Cursos y tareas - Moodle")
+root.geometry("700x500")
 
+style = ttk.Style()
+style.theme_use("clam")
+
+# ===== FUNCIÓN CAMBIAR TEMA =====
+def aplicar_tema(nombre):
+    colores = TEMAS[nombre]
+
+    root.configure(bg=colores["BG"])
+
+    style.configure(".",
+                    background=colores["BG"],
+                    foreground=colores["FG"])
+
+    style.configure("Treeview",
+                    background=colores["TREE_BG"],
+                    fieldbackground=colores["TREE_BG"],
+                    foreground=colores["FG"])
+
+    style.map("Treeview",
+              background=[("selected", colores["ACCENT"])],
+              foreground=[("selected", "white")])
+
+    label.configure(bg=colores["BG"], fg=colores["FG"])
+
+    text.configure(bg=colores["TEXT_BG"],
+                   fg=colores["FG"],
+                   insertbackground=colores["FG"])
+
+# ===== MENÚ SUPERIOR =====
+menu_bar = tk.Menu(root)
+root.config(menu=menu_bar)
+
+menu_tema = tk.Menu(menu_bar, tearoff=0)
+menu_bar.add_cascade(label="Tema", menu=menu_tema)
+
+menu_tema.add_command(label="Modo oscuro",
+                      command=lambda: aplicar_tema("oscuro"))
+
+menu_tema.add_command(label="Modo claro",
+                      command=lambda: aplicar_tema("claro"))
+
+# ===== TREEVIEW =====
 tree = ttk.Treeview(root)
 tree["columns"] = ("tipo",)
 tree.column("#0", width=300)
@@ -162,14 +224,14 @@ for c in courses:
     for a in c.get("assignments", []):
         tree.insert(cid, "end", text=a["name"], values=("Tarea",))
 
-tree.pack(fill="both", expand=True)
+tree.pack(fill="both", expand=True, padx=10, pady=10)
 
 # Campo modificable (comentarios)
 label = tk.Label(root, text="Comentario seleccionado:")
-label.pack(anchor="w", padx=5, pady=5)
+label.pack(anchor="w", padx=10, pady=5)
 
 text = tk.Text(root, height=4)
-text.pack(fill="x", padx=5, pady=5)
+text.pack(fill="x", padx=10, pady=5)
 
 def on_select(event):
     item = tree.focus()
@@ -179,8 +241,9 @@ def on_select(event):
 
 tree.bind("<<TreeviewSelect>>", on_select)
 
-# Importante: no cierres Selenium antes de terminar de scrapear
+# Aplicar tema inicial
+aplicar_tema("oscuro")
+
 root.mainloop()
 
-# Cuando cierres la interfaz, ya puedes cerrar el navegador
 driver.quit()
