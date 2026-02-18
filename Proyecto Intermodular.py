@@ -3,6 +3,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from webdriver_manager.chrome import ChromeDriverManager
+import time
+from urllib.parse import urlparse, parse_qs
 
 from getpass import getpass
 from bs4 import BeautifulSoup
@@ -110,6 +112,10 @@ html_home = driver.page_source
 print(html_home[:1000])  # Solo para depurar
 
 # ======= PARSEAR CURSOS =======
+def get_course_id(url):
+    qs = parse_qs(urlparse(url).query)
+    return qs.get("id", [None])[0]
+
 def parse_courses(html):
     soup = BeautifulSoup(html, "html.parser")
     courses = []
@@ -126,24 +132,109 @@ for c in courses:
     print("-", c["name"], "->", c["url"])
 
 # ======= OBTENER TAREAS DE CADA CURSO USANDO SELENIUM =======
-def get_assignments_html(course_url):
-    driver.get(course_url)
-    return driver.page_source
+def get_all_assignments_from_index(course_url):
+    cid = get_course_id(course_url)
+
+    if not cid:
+        return []
+
+    index_url = f"{MOODLE_BASE}/mod/assign/index.php?id={cid}"
+
+    driver.get(index_url)
+
+    soup = BeautifulSoup(driver.page_source, "html.parser")
+
+    assignments = []
+
+    # Tabla oficial de tareas de Moodle
+    for row in soup.select("table.generaltable tbody tr"):
+        link = row.select_one("a")
+
+        if not link:
+            continue
+
+        name = link.get_text(strip=True)
+        href = link["href"]
+
+        # Intentar descripción (a veces está en la tabla)
+        cols = row.find_all("td")
+        description = ""
+
+        if len(cols) > 1:
+            description = cols[1].get_text(strip=True)
+
+        assignments.append({
+            "name": name,
+            "url": href,
+            "description": description or ""
+        })
+
+    return assignments
+
 
 def parse_assignments(html):
     soup = BeautifulSoup(html, "html.parser")
-    assignments = []
-    # En muchos Moodles, las tareas son enlaces a /mod/assign/view.php?id=XXX
-    for a in soup.select('a[href*="/mod/assign/view.php?id="]'):
-        name = a.get_text(strip=True)
-        href = a["href"]
-        assignments.append({"name": name, "url": href})
-    return assignments
+    sections = []
+
+    for sec in soup.select("li.section"):
+
+        title_el = (
+            sec.select_one(".sectionname") or
+            sec.select_one("h3") or
+            sec.select_one(".section-title")
+        )
+
+        if not title_el:
+            continue
+
+        section_title = title_el.get_text(strip=True)
+        tasks = []
+
+        for li in sec.select("li.activity.assign"):
+            a = li.select_one("a.aalink")
+
+            if not a:
+                continue
+
+            name = a.get_text(strip=True)
+            href = a["href"]
+
+            # Buscar descripción en varios sitios
+            desc_el = (
+                li.select_one(".contentafterlink") or
+                li.select_one(".no-overflow") or
+                li.select_one(".activity-description") or
+                li.select_one(".contentwithoutlink")
+            )
+
+            description = ""
+            if desc_el:
+                description = desc_el.get_text(
+                    "\n", strip=True)
+
+            tasks.append({
+                "name": name,
+                "url": href,
+                "description": description or ""
+            })
+
+        if tasks:
+            sections.append({
+                "title": section_title,
+                "tasks": tasks
+            })
+
+    return sections
+
 
 # Construir estructura: cursos + tareas
 for c in courses:
-    html_course = get_assignments_html(c["url"])
-    c["assignments"] = parse_assignments(html_course)
+    c["assignments"] = [{
+        "title": "Tareas",
+        "tasks": get_all_assignments_from_index(c["url"])
+    }]
+
+
 
 # ======= INTERFAZ TKINTER =======
 
@@ -221,8 +312,17 @@ tree.heading("tipo", text="Tipo")
 # Insertar cursos y tareas
 for c in courses:
     cid = tree.insert("", "end", text=c["name"], values=("Curso",))
-    for a in c.get("assignments", []):
-        tree.insert(cid, "end", text=a["name"], values=("Tarea",))
+
+    for sec in c.get("assignments", []):
+        sid = tree.insert(cid, "end",
+                          text=sec["title"],
+                          values=("Sección",))
+
+        for task in sec["tasks"]:
+            tree.insert(sid, "end",
+                        text=task["name"],
+                        values=("Tarea",))
+
 
 tree.pack(fill="both", expand=True, padx=10, pady=10)
 
@@ -236,8 +336,22 @@ text.pack(fill="x", padx=10, pady=5)
 def on_select(event):
     item = tree.focus()
     name = tree.item(item, "text")
+
+    # Buscar descripción
+    desc = ""
+    for c in courses:
+        for a in c.get("assignments", []):
+            if a["name"] == name:
+                desc = a.get("description", "")
+                break
+
     text.delete("1.0", tk.END)
-    text.insert(tk.END, f"Editar comentario para: {name}")
+
+    if desc:
+        text.insert(tk.END, desc)
+    else:
+        text.insert(tk.END, f"Editar comentario para: {name}")
+
 
 tree.bind("<<TreeviewSelect>>", on_select)
 
