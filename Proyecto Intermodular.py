@@ -78,7 +78,6 @@ def pedir_credenciales():
 
     result = {"username": None, "password": None}
 
-    # Fondo con frame principal
     frame = ctk.CTkFrame(ventana, corner_radius=20,
                          fg_color="#1a1a2e",
                          border_width=1, border_color="#2a2a5a")
@@ -91,7 +90,6 @@ def pedir_credenciales():
                  font=ctk.CTkFont(size=11), text_color="gray",
                  wraplength=300, justify="center").pack(pady=(4, 22))
 
-    # Campo usuario
     ctk.CTkLabel(frame, text="Usuario", font=ctk.CTkFont(size=12),
                  anchor="w").pack(fill="x", padx=30)
     user_entry = ctk.CTkEntry(frame, placeholder_text="Tu usuario...",
@@ -99,7 +97,6 @@ def pedir_credenciales():
                                font=ctk.CTkFont(size=13))
     user_entry.pack(padx=30, pady=(2, 14))
 
-    # Campo contraseña
     ctk.CTkLabel(frame, text="Contraseña", font=ctk.CTkFont(size=12),
                  anchor="w").pack(fill="x", padx=30)
     pass_entry = ctk.CTkEntry(frame, placeholder_text="Tu contraseña...",
@@ -107,7 +104,6 @@ def pedir_credenciales():
                                font=ctk.CTkFont(size=13), show="•")
     pass_entry.pack(padx=30, pady=(2, 6))
 
-    # Mostrar/ocultar contraseña
     mostrar_var = ctk.BooleanVar(value=False)
     def toggle_pass():
         pass_entry.configure(show="" if mostrar_var.get() else "•")
@@ -144,7 +140,7 @@ def pedir_credenciales():
 
 # ===================== PANTALLA DE CARGA =====================
 def mostrar_cargando(mensaje="Cargando..."):
-    """Devuelve (ventana, actualizar_fn). Llama a ventana.destroy() para cerrar."""
+    """Devuelve (ventana, actualizar_fn, cerrar_fn)."""
     ventana = ctk.CTk()
     ventana.title("Moodle — Cargando")
     ventana.geometry("380x220")
@@ -177,8 +173,12 @@ def mostrar_cargando(mensaje="Cargando..."):
             sub_label.configure(text=nuevo_sub)
         ventana.update()
 
+    def cerrar():
+        barra.stop()          # para la animación antes de destruir
+        ventana.destroy()
+
     ventana.update()
-    return ventana, actualizar
+    return ventana, actualizar, cerrar
 
 
 # ===================== SCRAPING =====================
@@ -198,6 +198,55 @@ def parse_courses(html):
             courses.append({"name": name, "url": href})
     return courses
 
+def get_assignment_details(driver, assign_url):
+    try:
+        driver.get(assign_url)
+        soup = BeautifulSoup(driver.page_source, "html.parser")
+
+        # ── Descripción ──────────────────────────────────────────
+        desc_div = soup.select_one("div.activity-description#intro")
+        description = desc_div.get_text(separator="\n", strip=True) if desc_div else "Sin descripción."
+
+        # ── Tabla de estado ───────────────────────────────────────
+        estado_entrega  = ""
+        estado_calific  = ""
+        tiempo_restante = ""
+        nota            = ""
+
+        status_table = soup.select_one("div.submissionstatustable table.generaltable")
+        if status_table:
+            for row in status_table.select("tr"):
+                th = row.select_one("th.cell.c0")
+                td = row.select_one("td.cell.c1")
+                if not th or not td:
+                    continue
+                label = th.get_text(strip=True).lower()
+                value = td.get_text(strip=True)
+
+                if "estado de la entrega" in label:
+                    estado_entrega = value
+                elif "calificaci" in label:
+                    estado_calific = value
+                elif "tiempo restante" in label or "fecha límite" in label:
+                    tiempo_restante = value
+
+        # ── Nota numérica (tabla feedback, solo si está calificado) ──
+        feedback_table = soup.select_one("div.feedback table.generaltable")
+        if feedback_table:
+            for row in feedback_table.select("tr"):
+                th = row.select_one("th.cell.c0")
+                td = row.select_one("td.cell.c1")
+                if th and td and "calificación" in th.get_text(strip=True).lower():
+                    # Limpia el &nbsp; y espacios: "9,00 / 10,00"
+                    nota = td.get_text(separator=" ", strip=True).replace("\xa0", " ")
+                    break
+
+        return description, estado_entrega, estado_calific, tiempo_restante, nota
+
+    except Exception as e:
+        print(f"Error obteniendo detalles de tarea: {e}")
+        return "Error al cargar.", "", "", "", ""
+
 def get_all_assignments_from_index(driver, course_url, moodle_base):
     cid = get_course_id(course_url)
     if not cid:
@@ -213,14 +262,20 @@ def get_all_assignments_from_index(driver, course_url, moodle_base):
         name = link.get_text(strip=True)
         href = link["href"]
         cols = row.find_all("td")
-        description = cols[1].get_text(strip=True) if len(cols) > 1 else ""
-        # Fecha de entrega si existe
         due_date = cols[2].get_text(strip=True) if len(cols) > 2 else ""
+
+        description, estado_entrega, estado_calific, tiempo_restante, nota = \
+            get_assignment_details(driver, href)
+
         assignments.append({
-            "name": name,
-            "url": href,
-            "description": description,
-            "due_date": due_date
+            "name":             name,
+            "url":              href,
+            "description":      description,
+            "due_date":         due_date,
+            "estado_entrega":   estado_entrega,
+            "estado_calific":   estado_calific,
+            "tiempo_restante":  tiempo_restante,
+            "nota":             nota,
         })
     return assignments
 
@@ -235,10 +290,8 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     app.geometry("1280x760")
     app.minsize(900, 600)
 
-    # Estado del tema
     tema_actual = {"modo": "dark"}
 
-    # ========== LAYOUT PRINCIPAL ==========
     app.grid_rowconfigure(0, weight=1)
     app.grid_columnconfigure(1, weight=1)
 
@@ -249,7 +302,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     sidebar.grid_propagate(False)
     sidebar.grid_rowconfigure(5, weight=1)
 
-    # Logo
     ctk.CTkLabel(sidebar, text="📚", font=ctk.CTkFont(size=40)).grid(
         row=0, column=0, pady=(30, 0), padx=20, sticky="w")
     ctk.CTkLabel(sidebar, text="Moodle",
@@ -259,11 +311,9 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
                  font=ctk.CTkFont(size=11), text_color="gray").grid(
         row=2, column=0, pady=(0, 25), padx=20, sticky="w")
 
-    # Separador visual
     sep = ctk.CTkFrame(sidebar, height=1, fg_color="#333355")
     sep.grid(row=3, column=0, sticky="ew", padx=15, pady=(0, 20))
 
-    # Navegación
     nav_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
     nav_frame.grid(row=4, column=0, sticky="ew", padx=10)
 
@@ -295,7 +345,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
     nav_click(0)
 
-    # Botón cambiar tema abajo
     def toggle_tema():
         modo = tema_actual["modo"]
         nuevo = "light" if modo == "dark" else "dark"
@@ -324,7 +373,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     ctk.CTkLabel(header, text="Panel de Control",
                  font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=25, pady=15)
 
-    # Buscar tarea (filtro rápido)
     search_var = tk.StringVar()
     search_entry = ctk.CTkEntry(header, placeholder_text="🔍 Buscar tarea...",
                                 textvariable=search_var, width=220, height=34)
@@ -337,10 +385,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
     total_cursos = len(courses)
     total_tareas = sum(len(c.get("assignments", [])) for c in courses)
-    total_secciones = sum(
-        len(set(t.get("section", "") for t in c.get("assignments", [])))
-        for c in courses
-    )
 
     def make_card(parent, col, icon, label, value, color):
         card = ctk.CTkFrame(parent, corner_radius=14,
@@ -358,7 +402,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     make_card(cards_frame, 1, "📝", "Tareas totales", total_tareas, "#81c784")
     make_card(cards_frame, 2, "✅", "Pendientes", total_tareas, "#ffb74d")
 
-    # Progreso card
     prog_card = ctk.CTkFrame(cards_frame, corner_radius=14,
                               fg_color=("white", "#1b2a4a"),
                               border_width=1, border_color=("gray80", "#2a3f6f"))
@@ -426,7 +469,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     tree.grid(row=1, column=0, sticky="nsew", padx=(8, 0), pady=(0, 10))
     sb.grid(row=1, column=1, sticky="ns", pady=(0, 10), padx=(0, 5))
 
-    # Referencia para buscar datos de tareas al seleccionar
     task_lookup = {}
 
     def poblar_arbol(filtro=""):
@@ -449,9 +491,8 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
     poblar_arbol()
 
-    def on_search(*args):
-        poblar_arbol(search_var.get())
-    search_var.trace("w", on_search)
+    # ← trace_add en lugar del deprecado trace
+    search_var.trace_add("write", lambda *args: poblar_arbol(search_var.get()))
 
     # === PANEL DETALLE ===
     detail_frame = ctk.CTkFrame(bottom, corner_radius=14,
@@ -474,11 +515,10 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
                                 font=ctk.CTkFont(size=11), text_color="gray")
     detail_type.grid(row=2, column=0, sticky="w", padx=15, pady=(0, 8))
 
-    # Separador
     ctk.CTkFrame(detail_frame, height=1, fg_color="#2a3f6f").grid(
         row=3, column=0, sticky="ew", padx=15, pady=4)
 
-    ctk.CTkLabel(detail_frame, text="💭  Notas personales:",
+    ctk.CTkLabel(detail_frame, text="📋  Información de la tarea:",
                  font=ctk.CTkFont(size=12, weight="bold")).grid(
         row=4, column=0, sticky="w", padx=15, pady=(10, 4))
 
@@ -488,7 +528,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     notes_box.grid(row=5, column=0, sticky="nsew", padx=15, pady=(0, 8))
     detail_frame.grid_rowconfigure(5, weight=1)
 
-    # Botón abrir en navegador
     open_btn = ctk.CTkButton(detail_frame, text="🌐  Abrir en Moodle",
                               height=36, corner_radius=8,
                               fg_color="#1e3a5f", hover_color="#2a4f7f",
@@ -509,29 +548,69 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
         detail_name.configure(text=name)
         detail_type.configure(text=f"Tipo: {tipo}")
-
         notes_box.delete("0.0", "end")
 
         if sel in task_lookup:
             tarea = task_lookup[sel]
-            desc = tarea.get("description", "")
-            due = tarea.get("due_date", "")
-            info = ""
+
+            due             = tarea.get("due_date", "")
+            desc            = tarea.get("description", "Sin descripción disponible.")
+            estado_entrega  = tarea.get("estado_entrega", "")
+            estado_calific  = tarea.get("estado_calific", "")
+            tiempo_restante = tarea.get("tiempo_restante", "")
+            nota            = tarea.get("nota", "")
+
+            lineas = []
+
             if due:
-                info += f"📅 Fecha de entrega: {due}\n\n"
-            if desc:
-                info += f"📄 Descripción:\n{desc}\n\n"
-            info += "✏️ Escribe aquí tus notas personales sobre esta tarea..."
-            notes_box.insert("0.0", info)
+                lineas.append(f"📅  Fecha de entrega: {due}")
+
+            if tiempo_restante:
+                lineas.append(f"⏱️  Tiempo restante: {tiempo_restante}")
+
+            lineas.append("")
+
+            if estado_entrega:
+                e_lower = estado_entrega.lower()
+                if "no" in e_lower or "todavía" in e_lower or "realizado" in e_lower:
+                    emoji_e = "❌"
+                elif "entregad" in e_lower:
+                    emoji_e = "✅"
+                else:
+                    emoji_e = "📋"
+                lineas.append(f"{emoji_e}  Estado de entrega: {estado_entrega}")
+
+            if estado_calific:
+                if "sin calificar" in estado_calific.lower():
+                    emoji_c = "⏳"
+                elif "calificad" in estado_calific.lower():
+                    emoji_c = "🎓"
+                else:
+                    emoji_c = "📊"
+                lineas.append(f"{emoji_c}  Estado calificación: {estado_calific}")
+
+            if nota:
+                lineas.append(f"🏆  Nota: {nota}")
+
+            lineas.append("")
+            lineas.append("─" * 40)
+            lineas.append("")
+            lineas.append("📄  Descripción:")
+            lineas.append("")
+
+            for linea in desc.split("\n"):
+                lineas.append(linea)
+
+            notes_box.insert("0.0", "\n".join(lineas))
+
             url = tarea.get("url", "")
             current_url["url"] = url
             if url:
-                open_btn.configure(state="normal",
-                                   command=lambda u=url: webbrowser.open(u))
+                open_btn.configure(state="normal", command=lambda u=url: webbrowser.open(u))
             else:
                 open_btn.configure(state="disabled")
         else:
-            notes_box.insert("0.0", f"📚 Curso seleccionado: {name}\n\nSelecciona una tarea para ver su detalle.")
+            notes_box.insert("0.0", f"📚  Curso: {name}\n\nSelecciona una tarea para ver su detalle.")
             open_btn.configure(state="disabled")
 
     tree.bind("<<TreeviewSelect>>", on_tree_select)
@@ -551,17 +630,16 @@ if __name__ == "__main__":
     MOODLE_URL, MOODLE_BASE = construir_urls(slug)
     print(f"Provincia: {provincia_nombre} → {MOODLE_BASE}")
 
-    # 2. Credenciales — ventana CTk bonita (sin input/getpass)
+    # 2. Credenciales
     USERNAME, PASSWORD = pedir_credenciales()
     if not USERNAME or not PASSWORD:
         raise SystemExit("No se introdujeron credenciales.")
 
-    # 3. Pantalla de carga
-    carga_win, actualizar_carga = mostrar_cargando("Iniciando navegador...")
+    # 3. Pantalla de carga — ahora devuelve también cerrar_carga
+    carga_win, actualizar_carga, cerrar_carga = mostrar_cargando("Iniciando navegador...")
 
     # 4. Selenium
     chrome_options = Options()
-    # chrome_options.add_argument("--headless=new")
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
@@ -575,7 +653,7 @@ if __name__ == "__main__":
         cas_button = driver.find_element(By.CSS_SELECTOR, "a.btn.btn-primary")
         cas_button.click()
     except Exception:
-        pass  # Algunos Moodle van directo al form CAS
+        pass
 
     actualizar_carga("Iniciando sesión en Moodle...", "Introduciendo credenciales...")
     driver.find_element(By.ID, "username").send_keys(USERNAME)
@@ -584,7 +662,6 @@ if __name__ == "__main__":
 
     # 6. Guardar cookies
     actualizar_carga("Guardando sesión...", "Almacenando cookies...")
-    os_username = os.environ.get("USERNAME", "usuario")
     cookies_path = os.path.join(os.path.expanduser("~"), "moodle_cookies.json")
     try:
         with open(cookies_path, "w", encoding="utf-8") as f:
@@ -610,6 +687,8 @@ if __name__ == "__main__":
     total = sum(len(c["assignments"]) for c in courses)
     print(f"Total tareas encontradas: {total}")
 
-    # 9. Cerrar pantalla de carga y lanzar dashboard
-    carga_win.destroy()
+    # 9. Cerrar pantalla de carga correctamente (para la barra antes de destruir)
+    cerrar_carga()
+
+    # 10. Lanzar dashboard
     lanzar_dashboard(courses, provincia_nombre, driver)
