@@ -33,7 +33,79 @@ def construir_urls(slug_provincia):
         base
     )
 
-# ===================== SELECCIÓN DE PROVINCIA (CustomTkinter) =====================
+# ===================== SELECCIÓN DE MODO =====================
+def seleccionar_modo():
+    """Muestra una ventana para elegir entre modo Rápido y modo Completo.
+    Devuelve 'rapido' o 'lento'."""
+    ventana = ctk.CTk()
+    ventana.title("Moodle — Modo de carga")
+    ventana.geometry("480x360")
+    ventana.resizable(False, False)
+    ctk.set_appearance_mode("dark")
+    ctk.set_default_color_theme("blue")
+
+    result = {"modo": None}
+
+    ctk.CTkLabel(ventana, text="⚡ Modo de carga",
+                 font=ctk.CTkFont(size=22, weight="bold")).pack(pady=(30, 6))
+    ctk.CTkLabel(ventana, text="¿Cómo quieres cargar tus tareas?",
+                 font=ctk.CTkFont(size=13), text_color="gray").pack(pady=(0, 28))
+
+    cards = ctk.CTkFrame(ventana, fg_color="transparent")
+    cards.pack(fill="x", padx=30)
+    cards.grid_columnconfigure((0, 1), weight=1)
+
+    # --- Tarjeta Rápido ---
+    card_r = ctk.CTkFrame(cards, corner_radius=14,
+                           fg_color="#1b2a4a",
+                           border_width=2, border_color="#1565c0")
+    card_r.grid(row=0, column=0, padx=(0, 8), sticky="nsew", ipady=10)
+
+    ctk.CTkLabel(card_r, text="⚡", font=ctk.CTkFont(size=34)).pack(pady=(18, 4))
+    ctk.CTkLabel(card_r, text="Rápido",
+                 font=ctk.CTkFont(size=16, weight="bold"),
+                 text_color="#4fc3f7").pack()
+    ctk.CTkLabel(card_r, text="Solo títulos\ny fechas de entrega",
+                 font=ctk.CTkFont(size=11), text_color="gray",
+                 justify="center").pack(pady=(4, 14))
+
+    def elegir_rapido():
+        result["modo"] = "rapido"
+        ventana.destroy()
+
+    ctk.CTkButton(card_r, text="Elegir", command=elegir_rapido,
+                  width=110, height=34, corner_radius=8,
+                  fg_color="#1565c0", hover_color="#1976d2",
+                  font=ctk.CTkFont(size=13, weight="bold")).pack(pady=(0, 18))
+
+    # --- Tarjeta Completo ---
+    card_l = ctk.CTkFrame(cards, corner_radius=14,
+                           fg_color="#1b2a4a",
+                           border_width=2, border_color="#2a3f6f")
+    card_l.grid(row=0, column=1, padx=(8, 0), sticky="nsew", ipady=10)
+
+    ctk.CTkLabel(card_l, text="🔍", font=ctk.CTkFont(size=34)).pack(pady=(18, 4))
+    ctk.CTkLabel(card_l, text="Completo",
+                 font=ctk.CTkFont(size=16, weight="bold"),
+                 text_color="#81c784").pack()
+    ctk.CTkLabel(card_l, text="Descripción, estado,\nnota y tiempo restante",
+                 font=ctk.CTkFont(size=11), text_color="gray",
+                 justify="center").pack(pady=(4, 14))
+
+    def elegir_lento():
+        result["modo"] = "lento"
+        ventana.destroy()
+
+    ctk.CTkButton(card_l, text="Elegir", command=elegir_lento,
+                  width=110, height=34, corner_radius=8,
+                  fg_color="#2a5f3a", hover_color="#3a7f4a",
+                  font=ctk.CTkFont(size=13, weight="bold")).pack(pady=(0, 18))
+
+    ventana.mainloop()
+    return result["modo"]
+
+
+# ===================== SELECCIÓN DE PROVINCIA =====================
 def seleccionar_provincia():
     ventana = ctk.CTk()
     ventana.title("Moodle — Selecciona provincia")
@@ -140,7 +212,6 @@ def pedir_credenciales():
 
 # ===================== PANTALLA DE CARGA =====================
 def mostrar_cargando(mensaje="Cargando..."):
-    """Devuelve (ventana, actualizar_fn, cerrar_fn)."""
     ventana = ctk.CTk()
     ventana.title("Moodle — Cargando")
     ventana.geometry("380x220")
@@ -174,7 +245,7 @@ def mostrar_cargando(mensaje="Cargando..."):
         ventana.update()
 
     def cerrar():
-        barra.stop()          # para la animación antes de destruir
+        barra.stop()
         ventana.destroy()
 
     ventana.update()
@@ -203,11 +274,9 @@ def get_assignment_details(driver, assign_url):
         driver.get(assign_url)
         soup = BeautifulSoup(driver.page_source, "html.parser")
 
-        # ── Descripción ──────────────────────────────────────────
         desc_div = soup.select_one("div.activity-description#intro")
         description = desc_div.get_text(separator="\n", strip=True) if desc_div else "Sin descripción."
 
-        # ── Tabla de estado ───────────────────────────────────────
         estado_entrega  = ""
         estado_calific  = ""
         tiempo_restante = ""
@@ -222,7 +291,6 @@ def get_assignment_details(driver, assign_url):
                     continue
                 label = th.get_text(strip=True).lower()
                 value = td.get_text(strip=True)
-
                 if "estado de la entrega" in label:
                     estado_entrega = value
                 elif "calificaci" in label:
@@ -230,14 +298,12 @@ def get_assignment_details(driver, assign_url):
                 elif "tiempo restante" in label or "fecha límite" in label:
                     tiempo_restante = value
 
-        # ── Nota numérica (tabla feedback, solo si está calificado) ──
         feedback_table = soup.select_one("div.feedback table.generaltable")
         if feedback_table:
             for row in feedback_table.select("tr"):
                 th = row.select_one("th.cell.c0")
                 td = row.select_one("td.cell.c1")
                 if th and td and "calificación" in th.get_text(strip=True).lower():
-                    # Limpia el &nbsp; y espacios: "9,00 / 10,00"
                     nota = td.get_text(separator=" ", strip=True).replace("\xa0", " ")
                     break
 
@@ -247,7 +313,11 @@ def get_assignment_details(driver, assign_url):
         print(f"Error obteniendo detalles de tarea: {e}")
         return "Error al cargar.", "", "", "", ""
 
-def get_all_assignments_from_index(driver, course_url, moodle_base):
+def get_all_assignments_from_index(driver, course_url, moodle_base, modo="lento"):
+    """
+    modo='rapido' → solo título y fecha, sin visitar cada tarea individualmente.
+    modo='lento'  → entra en cada tarea para cargar todos los detalles.
+    """
     cid = get_course_id(course_url)
     if not cid:
         return []
@@ -264,19 +334,32 @@ def get_all_assignments_from_index(driver, course_url, moodle_base):
         cols = row.find_all("td")
         due_date = cols[2].get_text(strip=True) if len(cols) > 2 else ""
 
-        description, estado_entrega, estado_calific, tiempo_restante, nota = \
-            get_assignment_details(driver, href)
-
-        assignments.append({
-            "name":             name,
-            "url":              href,
-            "description":      description,
-            "due_date":         due_date,
-            "estado_entrega":   estado_entrega,
-            "estado_calific":   estado_calific,
-            "tiempo_restante":  tiempo_restante,
-            "nota":             nota,
-        })
+        if modo == "rapido":
+            # Solo título y fecha, sin entrar en la página de la tarea
+            assignments.append({
+                "name":             name,
+                "url":              href,
+                "description":      "ℹ️  Carga en modo rápido — abre la tarea para ver los detalles.",
+                "due_date":         due_date,
+                "estado_entrega":   "",
+                "estado_calific":   "",
+                "tiempo_restante":  "",
+                "nota":             "",
+            })
+        else:
+            # Modo completo: entra en cada tarea
+            description, estado_entrega, estado_calific, tiempo_restante, nota = \
+                get_assignment_details(driver, href)
+            assignments.append({
+                "name":             name,
+                "url":              href,
+                "description":      description,
+                "due_date":         due_date,
+                "estado_entrega":   estado_entrega,
+                "estado_calific":   estado_calific,
+                "tiempo_restante":  tiempo_restante,
+                "nota":             nota,
+            })
     return assignments
 
 
@@ -490,17 +573,18 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
                 task_lookup[tid] = tarea
 
     poblar_arbol()
-
-    # ← trace_add en lugar del deprecado trace
     search_var.trace_add("write", lambda *args: poblar_arbol(search_var.get()))
 
     # === PANEL DETALLE ===
+    # La fila 5 (notes_box) tiene weight=1 para que crezca verticalmente
+    # y ocupe todo el espacio disponible, mostrando mucho más texto.
     detail_frame = ctk.CTkFrame(bottom, corner_radius=14,
                                  fg_color=("white", "#1b2a4a"),
                                  border_width=1, border_color=("gray80", "#2a3f6f"))
     detail_frame.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-    detail_frame.grid_rowconfigure(3, weight=1)
     detail_frame.grid_columnconfigure(0, weight=1)
+    # Solo la fila del textbox crece
+    detail_frame.grid_rowconfigure(5, weight=1)
 
     ctk.CTkLabel(detail_frame, text="🔍  Detalle",
                  font=ctk.CTkFont(size=15, weight="bold")).grid(
@@ -513,20 +597,22 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
     detail_type = ctk.CTkLabel(detail_frame, text="",
                                 font=ctk.CTkFont(size=11), text_color="gray")
-    detail_type.grid(row=2, column=0, sticky="w", padx=15, pady=(0, 8))
+    detail_type.grid(row=2, column=0, sticky="w", padx=15, pady=(0, 4))
 
     ctk.CTkFrame(detail_frame, height=1, fg_color="#2a3f6f").grid(
         row=3, column=0, sticky="ew", padx=15, pady=4)
 
     ctk.CTkLabel(detail_frame, text="📋  Información de la tarea:",
                  font=ctk.CTkFont(size=12, weight="bold")).grid(
-        row=4, column=0, sticky="w", padx=15, pady=(10, 4))
+        row=4, column=0, sticky="w", padx=15, pady=(6, 4))
 
+    # ── Textbox de descripción: sticky="nsew" + grid_rowconfigure weight=1
+    #    hace que ocupe todo el espacio vertical restante del panel ──
     notes_box = ctk.CTkTextbox(detail_frame, corner_radius=8,
                                 fg_color=("gray95", "#0f3460"),
-                                font=ctk.CTkFont(size=12))
-    notes_box.grid(row=5, column=0, sticky="nsew", padx=15, pady=(0, 8))
-    detail_frame.grid_rowconfigure(5, weight=1)
+                                font=ctk.CTkFont(size=12),
+                                wrap="word")
+    notes_box.grid(row=5, column=0, sticky="nsew", padx=15, pady=(0, 6))
 
     open_btn = ctk.CTkButton(detail_frame, text="🌐  Abrir en Moodle",
                               height=36, corner_radius=8,
@@ -564,7 +650,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
             if due:
                 lineas.append(f"📅  Fecha de entrega: {due}")
-
             if tiempo_restante:
                 lineas.append(f"⏱️  Tiempo restante: {tiempo_restante}")
 
@@ -621,7 +706,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
 # ===================== MAIN =====================
 if __name__ == "__main__":
-    # 1. Seleccionar provincia
+    # 1. Seleccionar modo de carga (ANTES del login)
+    modo_carga = seleccionar_modo()
+    if modo_carga is None:
+        raise SystemExit("No se seleccionó modo de carga.")
+
+    # 2. Seleccionar provincia
     provincia_nombre = seleccionar_provincia()
     if provincia_nombre is None:
         raise SystemExit("No se seleccionó provincia.")
@@ -629,23 +719,24 @@ if __name__ == "__main__":
     slug = PROVINCIAS[provincia_nombre]
     MOODLE_URL, MOODLE_BASE = construir_urls(slug)
     print(f"Provincia: {provincia_nombre} → {MOODLE_BASE}")
+    print(f"Modo de carga: {modo_carga}")
 
-    # 2. Credenciales
+    # 3. Credenciales
     USERNAME, PASSWORD = pedir_credenciales()
     if not USERNAME or not PASSWORD:
         raise SystemExit("No se introdujeron credenciales.")
 
-    # 3. Pantalla de carga — ahora devuelve también cerrar_carga
+    # 4. Pantalla de carga
     carga_win, actualizar_carga, cerrar_carga = mostrar_cargando("Iniciando navegador...")
 
-    # 4. Selenium
+    # 5. Selenium
     chrome_options = Options()
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
 
-    # 5. Login CAS
+    # 6. Login CAS
     actualizar_carga("Iniciando sesión en Moodle...", "Abriendo página de acceso...")
     driver.get(MOODLE_URL)
 
@@ -660,7 +751,7 @@ if __name__ == "__main__":
     driver.find_element(By.ID, "password").send_keys(PASSWORD)
     driver.find_element(By.NAME, "submit").click()
 
-    # 6. Guardar cookies
+    # 7. Guardar cookies
     actualizar_carga("Guardando sesión...", "Almacenando cookies...")
     cookies_path = os.path.join(os.path.expanduser("~"), "moodle_cookies.json")
     try:
@@ -670,25 +761,28 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"No se pudieron guardar cookies: {e}")
 
-    # 7. Parsear cursos
+    # 8. Parsear cursos
     actualizar_carga("Obteniendo tus cursos...", "Cargando área personal de Moodle...")
     driver.get(f"{MOODLE_BASE}/my/")
     courses = parse_courses(driver.page_source)
     print(f"Cursos encontrados: {len(courses)}")
 
-    # 8. Obtener tareas por cada curso
+    # 9. Obtener tareas según el modo elegido
     for i, c in enumerate(courses, 1):
+        label_modo = "rápido" if modo_carga == "rapido" else "completo"
         actualizar_carga(
-            f"Cargando tareas... ({i}/{len(courses)})",
+            f"Cargando tareas ({label_modo})... ({i}/{len(courses)})",
             c["name"][:50]
         )
-        c["assignments"] = get_all_assignments_from_index(driver, c["url"], MOODLE_BASE)
+        c["assignments"] = get_all_assignments_from_index(
+            driver, c["url"], MOODLE_BASE, modo=modo_carga
+        )
 
     total = sum(len(c["assignments"]) for c in courses)
     print(f"Total tareas encontradas: {total}")
 
-    # 9. Cerrar pantalla de carga correctamente (para la barra antes de destruir)
+    # 10. Cerrar pantalla de carga
     cerrar_carga()
 
-    # 10. Lanzar dashboard
+    # 11. Lanzar dashboard
     lanzar_dashboard(courses, provincia_nombre, driver)
