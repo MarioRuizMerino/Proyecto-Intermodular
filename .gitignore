@@ -1,0 +1,17 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# Mac
+.DS_Store
+
+# IDEs
+.vscode/
+.idea/
+
+# Local data (credentials)
+moodle_cookies.json
