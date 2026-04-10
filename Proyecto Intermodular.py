@@ -26,6 +26,9 @@ PROVINCIAS = {
     "Almería": "almeria",
 }
 
+COOKIES_PATH = os.path.join(os.path.expanduser("~"), "moodle_cookies.json")
+
+
 def construir_urls(slug_provincia):
     base = f"https://educacionadistancia.juntadeandalucia.es/centros/{slug_provincia}"
     return (
@@ -33,10 +36,9 @@ def construir_urls(slug_provincia):
         base
     )
 
+
 # ===================== SELECCIÓN DE MODO =====================
 def seleccionar_modo():
-    """Muestra una ventana para elegir entre modo Rápido y modo Completo.
-    Devuelve 'rapido' o 'lento'."""
     ventana = ctk.CTk()
     ventana.title("Moodle — Modo de carga")
     ventana.geometry("480x360")
@@ -55,15 +57,11 @@ def seleccionar_modo():
     cards.pack(fill="x", padx=30)
     cards.grid_columnconfigure((0, 1), weight=1)
 
-    # --- Tarjeta Rápido ---
-    card_r = ctk.CTkFrame(cards, corner_radius=14,
-                           fg_color="#1b2a4a",
+    card_r = ctk.CTkFrame(cards, corner_radius=14, fg_color="#1b2a4a",
                            border_width=2, border_color="#1565c0")
     card_r.grid(row=0, column=0, padx=(0, 8), sticky="nsew", ipady=10)
-
     ctk.CTkLabel(card_r, text="⚡", font=ctk.CTkFont(size=34)).pack(pady=(18, 4))
-    ctk.CTkLabel(card_r, text="Rápido",
-                 font=ctk.CTkFont(size=16, weight="bold"),
+    ctk.CTkLabel(card_r, text="Rápido", font=ctk.CTkFont(size=16, weight="bold"),
                  text_color="#4fc3f7").pack()
     ctk.CTkLabel(card_r, text="Solo títulos\ny fechas de entrega",
                  font=ctk.CTkFont(size=11), text_color="gray",
@@ -78,15 +76,11 @@ def seleccionar_modo():
                   fg_color="#1565c0", hover_color="#1976d2",
                   font=ctk.CTkFont(size=13, weight="bold")).pack(pady=(0, 18))
 
-    # --- Tarjeta Completo ---
-    card_l = ctk.CTkFrame(cards, corner_radius=14,
-                           fg_color="#1b2a4a",
+    card_l = ctk.CTkFrame(cards, corner_radius=14, fg_color="#1b2a4a",
                            border_width=2, border_color="#2a3f6f")
     card_l.grid(row=0, column=1, padx=(8, 0), sticky="nsew", ipady=10)
-
     ctk.CTkLabel(card_l, text="🔍", font=ctk.CTkFont(size=34)).pack(pady=(18, 4))
-    ctk.CTkLabel(card_l, text="Completo",
-                 font=ctk.CTkFont(size=16, weight="bold"),
+    ctk.CTkLabel(card_l, text="Completo", font=ctk.CTkFont(size=16, weight="bold"),
                  text_color="#81c784").pack()
     ctk.CTkLabel(card_l, text="Descripción, estado,\nnota y tiempo restante",
                  font=ctk.CTkFont(size=11), text_color="gray",
@@ -133,17 +127,22 @@ def seleccionar_provincia():
         ventana.destroy()
 
     ctk.CTkButton(ventana, text="Continuar →", command=confirmar,
-                  width=220, height=40, font=ctk.CTkFont(size=14, weight="bold")).pack(pady=20)
+                  width=220, height=40,
+                  font=ctk.CTkFont(size=14, weight="bold")).pack(pady=20)
 
     ventana.mainloop()
     return result["provincia"]
 
 
 # ===================== VENTANA DE LOGIN =====================
-def pedir_credenciales():
+def pedir_credenciales(mensaje_extra=""):
+    """
+    Muestra el formulario de login.
+    mensaje_extra: texto de aviso en naranja (p.ej. 'Sesión caducada').
+    """
     ventana = ctk.CTk()
     ventana.title("Moodle — Iniciar sesión")
-    ventana.geometry("400x480")
+    ventana.geometry("400x510" if mensaje_extra else "400x480")
     ventana.resizable(False, False)
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
@@ -155,12 +154,20 @@ def pedir_credenciales():
                          border_width=1, border_color="#2a2a5a")
     frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.88)
 
-    ctk.CTkLabel(frame, text="📚", font=ctk.CTkFont(size=44)).pack(pady=(30, 4))
+    ctk.CTkLabel(frame, text="📚", font=ctk.CTkFont(size=44)).pack(pady=(24, 4))
     ctk.CTkLabel(frame, text="Bienvenido a Moodle",
                  font=ctk.CTkFont(size=20, weight="bold")).pack()
     ctk.CTkLabel(frame, text="Introduce tus credenciales de la Junta de Andalucía",
                  font=ctk.CTkFont(size=11), text_color="gray",
-                 wraplength=300, justify="center").pack(pady=(4, 22))
+                 wraplength=300, justify="center").pack(pady=(4, 8))
+
+    if mensaje_extra:
+        ctk.CTkLabel(frame, text=mensaje_extra,
+                     font=ctk.CTkFont(size=11, weight="bold"),
+                     text_color="#ffb74d",
+                     wraplength=290, justify="center").pack(pady=(0, 10))
+    else:
+        ctk.CTkFrame(frame, height=8, fg_color="transparent").pack()
 
     ctk.CTkLabel(frame, text="Usuario", font=ctk.CTkFont(size=12),
                  anchor="w").pack(fill="x", padx=30)
@@ -177,11 +184,13 @@ def pedir_credenciales():
     pass_entry.pack(padx=30, pady=(2, 6))
 
     mostrar_var = ctk.BooleanVar(value=False)
+
     def toggle_pass():
         pass_entry.configure(show="" if mostrar_var.get() else "•")
+
     ctk.CTkCheckBox(frame, text="Mostrar contraseña", variable=mostrar_var,
                     command=toggle_pass, font=ctk.CTkFont(size=11),
-                    text_color="gray").pack(anchor="w", padx=32, pady=(0, 20))
+                    text_color="gray").pack(anchor="w", padx=32, pady=(0, 16))
 
     error_label = ctk.CTkLabel(frame, text="", text_color="#ef5350",
                                 font=ctk.CTkFont(size=11))
@@ -199,10 +208,8 @@ def pedir_credenciales():
 
     ventana.bind("<Return>", confirmar)
 
-    ctk.CTkButton(frame, text="Iniciar sesión →",
-                  command=confirmar,
-                  width=300, height=42,
-                  corner_radius=8,
+    ctk.CTkButton(frame, text="Iniciar sesión →", command=confirmar,
+                  width=300, height=42, corner_radius=8,
                   font=ctk.CTkFont(size=14, weight="bold"),
                   fg_color="#1565c0", hover_color="#1976d2").pack(padx=30, pady=(4, 0))
 
@@ -252,10 +259,92 @@ def mostrar_cargando(mensaje="Cargando..."):
     return ventana, actualizar, cerrar
 
 
+# ===================== COOKIES =====================
+def guardar_cookies(driver):
+    try:
+        with open(COOKIES_PATH, "w", encoding="utf-8") as f:
+            json.dump(driver.get_cookies(), f, indent=4, ensure_ascii=False)
+        print(f"Cookies guardadas en: {COOKIES_PATH}")
+    except Exception as e:
+        print(f"No se pudieron guardar cookies: {e}")
+
+
+def cargar_cookies_en_driver(driver, moodle_base):
+    """
+    Intenta restaurar la sesión inyectando las cookies guardadas.
+    Devuelve True si la sesión es válida, False si no hay cookies
+    o han caducado (Moodle redirige a login).
+    """
+    if not os.path.exists(COOKIES_PATH):
+        print("No hay cookies guardadas.")
+        return False
+
+    try:
+        with open(COOKIES_PATH, "r", encoding="utf-8") as f:
+            cookies = json.load(f)
+    except Exception as e:
+        print(f"Error leyendo cookies: {e}")
+        return False
+
+    # El driver necesita estar en el dominio antes de aceptar cookies
+    driver.get(moodle_base)
+
+    for cookie in cookies:
+        # Filtramos solo los campos que Selenium acepta sin error
+        cookie_limpia = {k: v for k, v in cookie.items()
+                         if k in ("name", "value", "domain", "path",
+                                  "secure", "httpOnly")}
+        try:
+            driver.add_cookie(cookie_limpia)
+        except Exception:
+            pass
+
+    # Navegamos al área personal para verificar si la sesión sigue activa
+    driver.get(f"{moodle_base}/my/")
+
+    if "login" in driver.current_url.lower():
+        print("Cookies caducadas o inválidas.")
+        return False
+
+    print("Sesión restaurada desde cookies guardadas ✓")
+    return True
+
+
+def hacer_login(driver, moodle_url, moodle_base, actualizar_carga, mensaje_extra=""):
+    """
+    Muestra el login, realiza el proceso CAS y guarda las cookies nuevas.
+    Devuelve True si todo fue bien, False si el usuario canceló.
+    """
+    USERNAME, PASSWORD = pedir_credenciales(mensaje_extra)
+    if not USERNAME or not PASSWORD:
+        return False
+
+    actualizar_carga("Iniciando sesión en Moodle...", "Abriendo página de acceso...")
+    driver.get(moodle_url)
+
+    try:
+        cas_button = driver.find_element(By.CSS_SELECTOR, "a.btn.btn-primary")
+        cas_button.click()
+    except Exception:
+        pass
+
+    actualizar_carga("Iniciando sesión en Moodle...", "Introduciendo credenciales...")
+    driver.find_element(By.ID, "username").send_keys(USERNAME)
+    driver.find_element(By.ID, "password").send_keys(PASSWORD)
+    driver.find_element(By.NAME, "submit").click()
+
+    actualizar_carga("Guardando sesión...", "Almacenando cookies...")
+    guardar_cookies(driver)
+
+    driver.get(f"{moodle_base}/my/")
+    return True
+
+
 # ===================== SCRAPING =====================
 def get_course_id(url):
     qs = parse_qs(urlparse(url).query)
     return qs.get("id", [None])[0]
+
 
 def parse_courses(html):
     soup = BeautifulSoup(html, "html.parser")
@@ -269,13 +358,15 @@ def parse_courses(html):
             courses.append({"name": name, "url": href})
     return courses
 
+
 def get_assignment_details(driver, assign_url):
     try:
         driver.get(assign_url)
         soup = BeautifulSoup(driver.page_source, "html.parser")
 
         desc_div = soup.select_one("div.activity-description#intro")
-        description = desc_div.get_text(separator="\n", strip=True) if desc_div else "Sin descripción."
+        description = (desc_div.get_text(separator="\n", strip=True)
+                       if desc_div else "Sin descripción.")
 
         estado_entrega  = ""
         estado_calific  = ""
@@ -313,11 +404,8 @@ def get_assignment_details(driver, assign_url):
         print(f"Error obteniendo detalles de tarea: {e}")
         return "Error al cargar.", "", "", "", ""
 
+
 def get_all_assignments_from_index(driver, course_url, moodle_base, modo="lento"):
-    """
-    modo='rapido' → solo título y fecha, sin visitar cada tarea individualmente.
-    modo='lento'  → entra en cada tarea para cargar todos los detalles.
-    """
     cid = get_course_id(course_url)
     if not cid:
         return []
@@ -335,7 +423,6 @@ def get_all_assignments_from_index(driver, course_url, moodle_base, modo="lento"
         due_date = cols[2].get_text(strip=True) if len(cols) > 2 else ""
 
         if modo == "rapido":
-            # Solo título y fecha, sin entrar en la página de la tarea
             assignments.append({
                 "name":             name,
                 "url":              href,
@@ -347,7 +434,6 @@ def get_all_assignments_from_index(driver, course_url, moodle_base, modo="lento"
                 "nota":             "",
             })
         else:
-            # Modo completo: entra en cada tarea
             description, estado_entrega, estado_calific, tiempo_restante, nota = \
                 get_assignment_details(driver, href)
             assignments.append({
@@ -409,6 +495,7 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     ]
 
     nav_buttons = []
+
     def nav_click(idx):
         for i, btn in enumerate(nav_buttons):
             btn.configure(fg_color="#1e3a5f" if i == idx else "transparent",
@@ -523,17 +610,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     style = ttk.Style()
     style.theme_use("default")
     style.configure("Moodle.Treeview",
-                    background="#1b2a4a",
-                    foreground="#e0e0e0",
-                    fieldbackground="#1b2a4a",
-                    borderwidth=0,
-                    rowheight=28,
-                    font=("Segoe UI", 11))
+                    background="#1b2a4a", foreground="#e0e0e0",
+                    fieldbackground="#1b2a4a", borderwidth=0,
+                    rowheight=28, font=("Segoe UI", 11))
     style.configure("Moodle.Treeview.Heading",
-                    background="#0f3460",
-                    foreground="#4fc3f7",
-                    font=("Segoe UI", 11, "bold"),
-                    relief="flat")
+                    background="#0f3460", foreground="#4fc3f7",
+                    font=("Segoe UI", 11, "bold"), relief="flat")
     style.map("Moodle.Treeview",
               background=[("selected", "#1e3a5f")],
               foreground=[("selected", "white")])
@@ -576,14 +658,11 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
     search_var.trace_add("write", lambda *args: poblar_arbol(search_var.get()))
 
     # === PANEL DETALLE ===
-    # La fila 5 (notes_box) tiene weight=1 para que crezca verticalmente
-    # y ocupe todo el espacio disponible, mostrando mucho más texto.
     detail_frame = ctk.CTkFrame(bottom, corner_radius=14,
                                  fg_color=("white", "#1b2a4a"),
                                  border_width=1, border_color=("gray80", "#2a3f6f"))
     detail_frame.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
     detail_frame.grid_columnconfigure(0, weight=1)
-    # Solo la fila del textbox crece
     detail_frame.grid_rowconfigure(5, weight=1)
 
     ctk.CTkLabel(detail_frame, text="🔍  Detalle",
@@ -606,8 +685,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
                  font=ctk.CTkFont(size=12, weight="bold")).grid(
         row=4, column=0, sticky="w", padx=15, pady=(6, 4))
 
-    # ── Textbox de descripción: sticky="nsew" + grid_rowconfigure weight=1
-    #    hace que ocupe todo el espacio vertical restante del panel ──
     notes_box = ctk.CTkTextbox(detail_frame, corner_radius=8,
                                 fg_color=("gray95", "#0f3460"),
                                 font=ctk.CTkFont(size=12),
@@ -618,8 +695,7 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
                               height=36, corner_radius=8,
                               fg_color="#1e3a5f", hover_color="#2a4f7f",
                               font=ctk.CTkFont(size=12),
-                              state="disabled",
-                              command=lambda: None)
+                              state="disabled", command=lambda: None)
     open_btn.grid(row=6, column=0, sticky="ew", padx=15, pady=(0, 15))
 
     current_url = {"url": None}
@@ -638,7 +714,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
 
         if sel in task_lookup:
             tarea = task_lookup[sel]
-
             due             = tarea.get("due_date", "")
             desc            = tarea.get("description", "Sin descripción disponible.")
             estado_entrega  = tarea.get("estado_entrega", "")
@@ -647,42 +722,28 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
             nota            = tarea.get("nota", "")
 
             lineas = []
-
             if due:
                 lineas.append(f"📅  Fecha de entrega: {due}")
             if tiempo_restante:
                 lineas.append(f"⏱️  Tiempo restante: {tiempo_restante}")
-
             lineas.append("")
 
             if estado_entrega:
                 e_lower = estado_entrega.lower()
-                if "no" in e_lower or "todavía" in e_lower or "realizado" in e_lower:
-                    emoji_e = "❌"
-                elif "entregad" in e_lower:
-                    emoji_e = "✅"
-                else:
-                    emoji_e = "📋"
+                emoji_e = ("❌" if ("no" in e_lower or "todavía" in e_lower
+                                    or "realizado" in e_lower)
+                           else "✅" if "entregad" in e_lower else "📋")
                 lineas.append(f"{emoji_e}  Estado de entrega: {estado_entrega}")
 
             if estado_calific:
-                if "sin calificar" in estado_calific.lower():
-                    emoji_c = "⏳"
-                elif "calificad" in estado_calific.lower():
-                    emoji_c = "🎓"
-                else:
-                    emoji_c = "📊"
+                emoji_c = ("⏳" if "sin calificar" in estado_calific.lower()
+                           else "🎓" if "calificad" in estado_calific.lower() else "📊")
                 lineas.append(f"{emoji_c}  Estado calificación: {estado_calific}")
 
             if nota:
                 lineas.append(f"🏆  Nota: {nota}")
 
-            lineas.append("")
-            lineas.append("─" * 40)
-            lineas.append("")
-            lineas.append("📄  Descripción:")
-            lineas.append("")
-
+            lineas += ["", "─" * 40, "", "📄  Descripción:", ""]
             for linea in desc.split("\n"):
                 lineas.append(linea)
 
@@ -691,27 +752,28 @@ def lanzar_dashboard(courses, provincia_nombre, driver):
             url = tarea.get("url", "")
             current_url["url"] = url
             if url:
-                open_btn.configure(state="normal", command=lambda u=url: webbrowser.open(u))
+                open_btn.configure(state="normal",
+                                   command=lambda u=url: webbrowser.open(u))
             else:
                 open_btn.configure(state="disabled")
         else:
-            notes_box.insert("0.0", f"📚  Curso: {name}\n\nSelecciona una tarea para ver su detalle.")
+            notes_box.insert("0.0",
+                f"📚  Curso: {name}\n\nSelecciona una tarea para ver su detalle.")
             open_btn.configure(state="disabled")
 
     tree.bind("<<TreeviewSelect>>", on_tree_select)
-
     app.protocol("WM_DELETE_WINDOW", lambda: (app.destroy(), driver.quit()))
     app.mainloop()
 
 
 # ===================== MAIN =====================
 if __name__ == "__main__":
-    # 1. Seleccionar modo de carga (ANTES del login)
+    # 1. Modo de carga
     modo_carga = seleccionar_modo()
     if modo_carga is None:
         raise SystemExit("No se seleccionó modo de carga.")
 
-    # 2. Seleccionar provincia
+    # 2. Provincia
     provincia_nombre = seleccionar_provincia()
     if provincia_nombre is None:
         raise SystemExit("No se seleccionó provincia.")
@@ -721,53 +783,61 @@ if __name__ == "__main__":
     print(f"Provincia: {provincia_nombre} → {MOODLE_BASE}")
     print(f"Modo de carga: {modo_carga}")
 
-    # 3. Credenciales
-    USERNAME, PASSWORD = pedir_credenciales()
-    if not USERNAME or not PASSWORD:
-        raise SystemExit("No se introdujeron credenciales.")
-
-    # 4. Pantalla de carga
+    # 3. Pantalla de carga
     carga_win, actualizar_carga, cerrar_carga = mostrar_cargando("Iniciando navegador...")
 
-    # 5. Selenium
+    # 4. Selenium
     chrome_options = Options()
     driver = webdriver.Chrome(
         service=Service(ChromeDriverManager().install()),
         options=chrome_options
     )
 
-    # 6. Login CAS
-    actualizar_carga("Iniciando sesión en Moodle...", "Abriendo página de acceso...")
-    driver.get(MOODLE_URL)
+    # 5. ── AUTENTICACIÓN ──────────────────────────────────────────────────────
+    #
+    #  Flujo:
+    #   a) Intentar restaurar sesión con cookies guardadas.
+    #   b) Si no hay cookies o han caducado → pedir credenciales.
+    #   c) Si las credenciales son incorrectas → volver a pedir con aviso.
+    #   d) Si el usuario cancela el login → salir.
+    #
+    actualizar_carga("Comprobando sesión guardada...", "Leyendo cookies...")
+    sesion_ok = cargar_cookies_en_driver(driver, MOODLE_BASE)
 
-    try:
-        cas_button = driver.find_element(By.CSS_SELECTOR, "a.btn.btn-primary")
-        cas_button.click()
-    except Exception:
-        pass
+    if sesion_ok:
+        # Sesión válida: refrescamos las cookies por si Moodle renovó tokens
+        actualizar_carga("Sesión restaurada ✓", "Actualizando cookies...")
+        guardar_cookies(driver)
+    else:
+        # Sin sesión válida → login manual, con reintento si las credenciales fallan
+        cerrar_carga()
+        aviso = ""   # primer intento: sin mensaje de error
+        while True:
+            carga_win, actualizar_carga, cerrar_carga = mostrar_cargando(
+                "Iniciando sesión...")
+            login_ok = hacer_login(
+                driver, MOODLE_URL, MOODLE_BASE, actualizar_carga, aviso)
 
-    actualizar_carga("Iniciando sesión en Moodle...", "Introduciendo credenciales...")
-    driver.find_element(By.ID, "username").send_keys(USERNAME)
-    driver.find_element(By.ID, "password").send_keys(PASSWORD)
-    driver.find_element(By.NAME, "submit").click()
+            if not login_ok:
+                # Usuario cerró la ventana sin rellenar
+                cerrar_carga()
+                driver.quit()
+                raise SystemExit("Login cancelado por el usuario.")
 
-    # 7. Guardar cookies
-    actualizar_carga("Guardando sesión...", "Almacenando cookies...")
-    cookies_path = os.path.join(os.path.expanduser("~"), "moodle_cookies.json")
-    try:
-        with open(cookies_path, "w", encoding="utf-8") as f:
-            json.dump(driver.get_cookies(), f, indent=4, ensure_ascii=False)
-        print(f"Cookies guardadas en: {cookies_path}")
-    except Exception as e:
-        print(f"No se pudieron guardar cookies: {e}")
+            # Comprobar si Moodle aceptó las credenciales
+            if "login" not in driver.current_url.lower():
+                break   # login correcto ✓
 
-    # 8. Parsear cursos
+            # Credenciales incorrectas → reintentar
+            cerrar_carga()
+            aviso = "⚠️  Credenciales incorrectas. Inténtalo de nuevo."
+
+    # 6. Parsear cursos (driver.page_source es ya /my/ tras el login o cookies)
     actualizar_carga("Obteniendo tus cursos...", "Cargando área personal de Moodle...")
-    driver.get(f"{MOODLE_BASE}/my/")
     courses = parse_courses(driver.page_source)
     print(f"Cursos encontrados: {len(courses)}")
 
-    # 9. Obtener tareas según el modo elegido
+    # 7. Obtener tareas
     for i, c in enumerate(courses, 1):
         label_modo = "rápido" if modo_carga == "rapido" else "completo"
         actualizar_carga(
@@ -781,8 +851,6 @@ if __name__ == "__main__":
     total = sum(len(c["assignments"]) for c in courses)
     print(f"Total tareas encontradas: {total}")
 
-    # 10. Cerrar pantalla de carga
+    # 8. Cerrar carga y lanzar dashboard
     cerrar_carga()
-
-    # 11. Lanzar dashboard
     lanzar_dashboard(courses, provincia_nombre, driver)

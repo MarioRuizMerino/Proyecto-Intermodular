@@ -36,10 +36,11 @@ def seleccionar_provincia():
     ventana.mainloop()
     return result["provincia"]
 
-def pedir_credenciales():
+
+def pedir_credenciales(error=False):
     ventana = ctk.CTk()
     ventana.title("Moodle — Iniciar sesión")
-    ventana.geometry("400x480")
+    ventana.geometry("400x500")
     ventana.resizable(False, False)
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
@@ -49,14 +50,25 @@ def pedir_credenciales():
     frame = ctk.CTkFrame(ventana, corner_radius=20,
                          fg_color="#1a1a2e",
                          border_width=1, border_color="#2a2a5a")
-    frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.88)
+    frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.92)
 
     ctk.CTkLabel(frame, text="📚", font=ctk.CTkFont(size=44)).pack(pady=(30, 4))
     ctk.CTkLabel(frame, text="Bienvenido a Moodle",
                  font=ctk.CTkFont(size=20, weight="bold")).pack()
     ctk.CTkLabel(frame, text="Introduce tus credenciales de la Junta de Andalucía",
                  font=ctk.CTkFont(size=11), text_color="gray",
-                 wraplength=300, justify="center").pack(pady=(4, 22))
+                 wraplength=300, justify="center").pack(pady=(4, 16))
+
+    # ── Mensaje de error (visible solo si error=True) ──
+    error_label = ctk.CTkLabel(
+        frame,
+        text="⚠️  Usuario o contraseña incorrectos. Inténtalo de nuevo." if error else "",
+        text_color="#ef5350",
+        font=ctk.CTkFont(size=11),
+        wraplength=300,
+        justify="center"
+    )
+    error_label.pack(pady=(0, 8))
 
     ctk.CTkLabel(frame, text="Usuario", font=ctk.CTkFont(size=12),
                  anchor="w").pack(fill="x", padx=30)
@@ -77,17 +89,18 @@ def pedir_credenciales():
         pass_entry.configure(show="" if mostrar_var.get() else "•")
     ctk.CTkCheckBox(frame, text="Mostrar contraseña", variable=mostrar_var,
                     command=toggle_pass, font=ctk.CTkFont(size=11),
-                    text_color="gray").pack(anchor="w", padx=32, pady=(0, 20))
+                    text_color="gray").pack(anchor="w", padx=32, pady=(0, 16))
 
-    error_label = ctk.CTkLabel(frame, text="", text_color="#ef5350",
-                                font=ctk.CTkFont(size=11))
-    error_label.pack()
+    # ── Error de campos vacíos ──
+    campos_label = ctk.CTkLabel(frame, text="", text_color="#ef5350",
+                                 font=ctk.CTkFont(size=11))
+    campos_label.pack()
 
     def confirmar(event=None):
         u = user_entry.get().strip()
         p = pass_entry.get()
         if not u or not p:
-            error_label.configure(text="⚠️  Por favor, rellena todos los campos.")
+            campos_label.configure(text="⚠️  Por favor, rellena todos los campos.")
             return
         result["username"] = u
         result["password"] = p
@@ -100,10 +113,11 @@ def pedir_credenciales():
                   width=300, height=42,
                   corner_radius=8,
                   font=ctk.CTkFont(size=14, weight="bold"),
-                  fg_color="#1565c0", hover_color="#1976d2").pack(padx=30, pady=(4, 0))
+                  fg_color="#1565c0", hover_color="#1976d2").pack(padx=30, pady=(8, 0))
 
     ventana.mainloop()
     return result["username"], result["password"]
+
 
 def mostrar_cargando(mensaje="Cargando..."):
     ventana = ctk.CTk()
@@ -144,6 +158,7 @@ def mostrar_cargando(mensaje="Cargando..."):
 
     ventana.update()
     return ventana, actualizar, cerrar
+
 
 def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn):
     ctk.set_appearance_mode("dark")

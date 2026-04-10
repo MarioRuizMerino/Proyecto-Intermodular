@@ -8,6 +8,10 @@ from bs4 import BeautifulSoup
 import json
 import os
 
+class LoginFallidoError(Exception):
+    """Se lanza cuando las credenciales son incorrectas."""
+    pass
+
 class MoodleScraper:
     def __init__(self, moodle_url, moodle_base):
         self.moodle_url = moodle_url
@@ -26,7 +30,7 @@ class MoodleScraper:
     def login(self, username, password, actualizar_carga_fn=None):
         if actualizar_carga_fn:
             actualizar_carga_fn("Iniciando sesión en Moodle...", "Abriendo página de acceso...")
-        
+
         self.driver.get(self.moodle_url)
 
         try:
@@ -37,11 +41,33 @@ class MoodleScraper:
 
         if actualizar_carga_fn:
             actualizar_carga_fn("Iniciando sesión en Moodle...", "Introduciendo credenciales...")
-            
+
         self.driver.find_element(By.ID, "username").send_keys(username)
         self.driver.find_element(By.ID, "password").send_keys(password)
         self.driver.find_element(By.NAME, "submit").click()
 
+        # Esperar a que cargue
+        import time
+        time.sleep(3)
+
+        # Comprobar login fallido DESPUÉS de hacer submit
+        url_actual = self.driver.current_url.lower()
+        html = self.driver.page_source.lower()
+        indicadores_error = [
+            "credenciales incorrectas",
+            "usuario o contraseña incorrect",
+            "incorrect username or password",
+            "identificación errónea",
+            "authentication failed",
+        ]
+        es_fallo = any(txt in html for txt in indicadores_error)
+        sigue_en_login = "/cas/login" in url_actual or (
+                    "/login" in url_actual and self.moodle_base.lower() not in url_actual)
+
+        if es_fallo or sigue_en_login:
+            raise LoginFallidoError("Usuario o contraseña incorrectos.")
+
+        print("Login correcto.")
     def guardar_cookies(self):
         cookies_path = os.path.join(os.path.expanduser("~"), "moodle_cookies.json")
         try:
