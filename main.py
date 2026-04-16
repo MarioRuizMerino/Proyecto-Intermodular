@@ -1,12 +1,7 @@
 from src.config import PROVINCIAS
 from src.gui import seleccionar_provincia, pedir_credenciales, mostrar_cargando, lanzar_dashboard
 from src.scraper import MoodleScraper, LoginFallidoError
-from src.session_manager import cargar_sesion, guardar_sesion
 import sys
-import os
-
-# Asegura que el directorio de trabajo sea el del propio script
-os.chdir(os.path.dirname(os.path.abspath(__file__)))
 
 def construir_urls(slug_provincia):
     base = f"https://educacionadistancia.juntadeandalucia.es/centros/{slug_provincia}"
@@ -14,26 +9,6 @@ def construir_urls(slug_provincia):
         f"{base}/login/index.php",
         base
     )
-
-
-session = cargar_sesion()
-
-# comprobar si ya estás logueado
-response = session.get("https://tu-web.com/dashboard")
-
-if "login" in response.url.lower():
-    usuario, password = pedir_credenciales()
-
-    login_data = {
-        "user": usuario,
-        "password": password
-    }
-
-    session.post("https://tu-web.com/login", data=login_data)
-
-    guardar_sesion(session)
-else:
-    print("Ya estabas logueado")
 
 def main():
     # 1. Seleccionar provincia
