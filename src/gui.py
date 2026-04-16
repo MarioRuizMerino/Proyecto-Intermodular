@@ -3,6 +3,7 @@ import tkinter as tk
 from tkinter import ttk
 import webbrowser
 from src.config import PROVINCIAS
+from tkinter import PanedWindow
 
 def seleccionar_provincia():
     ventana = ctk.CTk()
@@ -297,18 +298,20 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn):
                  font=ctk.CTkFont(size=18, weight="bold"),
                  text_color="#4fc3f7").pack(pady=(0, 15))
 
-    # --- PANEL INFERIOR: Árbol + Detalle ---
     bottom = ctk.CTkFrame(main, fg_color="transparent")
     bottom.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
-    bottom.grid_rowconfigure(0, weight=1)
-    bottom.grid_columnconfigure(0, weight=3)
-    bottom.grid_columnconfigure(1, weight=2)
+
+    # 🔥 NUEVO: panel redimensionable
+    paned = PanedWindow(bottom, orient="horizontal", sashwidth=6)
+    paned.pack(fill="both", expand=True)
 
     # === ÁRBOL DE CURSOS ===
-    tree_frame = ctk.CTkFrame(bottom, corner_radius=14,
-                               fg_color=("white", "#1b2a4a"),
-                               border_width=1, border_color=("gray80", "#2a3f6f"))
-    tree_frame.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+    tree_frame = ctk.CTkFrame(paned,
+                              corner_radius=14,
+                              fg_color=("white", "#1b2a4a"),
+                              border_width=1, border_color=("gray80", "#2a3f6f"))
+
+    paned.add(tree_frame)
     tree_frame.grid_rowconfigure(1, weight=1)
     tree_frame.grid_columnconfigure(0, weight=1)
 
@@ -372,10 +375,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn):
     search_var.trace_add("write", lambda *args: poblar_arbol(search_var.get()))
 
     # === PANEL DETALLE ===
-    detail_frame = ctk.CTkFrame(bottom, corner_radius=14,
-                                 fg_color=("white", "#1b2a4a"),
-                                 border_width=1, border_color=("gray80", "#2a3f6f"))
-    detail_frame.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+    detail_frame = ctk.CTkFrame(paned,
+                                corner_radius=14,
+                                fg_color=("white", "#1b2a4a"),
+                                border_width=1, border_color=("gray80", "#2a3f6f"))
+
+    paned.add(detail_frame)
     detail_frame.grid_rowconfigure(3, weight=1)
     detail_frame.grid_columnconfigure(0, weight=1)
 

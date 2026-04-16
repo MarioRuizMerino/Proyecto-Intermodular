@@ -4,7 +4,7 @@ Este es el trabajo que hemos creado los siguientes integrantes para el trabajo d
 * Mario Ruiz Merino
 * Marco Garcia Carrasco
 * Fabio Martín Muñoz
-* Mario Ruiz Merino
+* Manuel Torres Urbano
 
 En este proyecto nos hemos propuesto a llevar a cabo un proyecto, para que las personas que no tengan tanto conocimiento de la Moodle, puedan usarla más accesiblemente.
 
