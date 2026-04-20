@@ -1,5 +1,5 @@
-('C:\\Users\\mario\\Pictures\\FP\\Proyecto '
- 'Intermodular\\build\\MoodleAndalucia\\PYZ-00.pyz',
+('C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular '
+ '2\\build\\MoodleAndalucia\\PYZ-00.pyz',
  [('__future__',
    'C:\\Program '
    'Files\\WindowsApps\\PythonSoftwareFoundation.Python.3.10_3.10.3056.0_x64__qbz5n2kfra8p0\\lib\\__future__.py',
@@ -1081,14 +1081,17 @@
    'C:\\Users\\mario\\AppData\\Local\\Packages\\PythonSoftwareFoundation.Python.3.10_qbz5n2kfra8p0\\LocalCache\\local-packages\\Python310\\site-packages\\soupsieve\\util.py',
    'PYMODULE'),
   ('src', '-', 'PYMODULE'),
+  ('src.cache',
+   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular 2\\src\\cache.py',
+   'PYMODULE'),
   ('src.config',
-   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular\\src\\config.py',
+   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular 2\\src\\config.py',
    'PYMODULE'),
   ('src.gui',
-   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular\\src\\gui.py',
+   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular 2\\src\\gui.py',
    'PYMODULE'),
   ('src.scraper',
-   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular\\src\\scraper.py',
+   'C:\\Users\\mario\\Pictures\\FP\\Proyecto Intermodular 2\\src\\scraper.py',
    'PYMODULE'),
   ('ssl',
    'C:\\Program '
