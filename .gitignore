@@ -1,0 +1,37 @@
+# ========== Build artifacts ==========
+build/
+dist/
+*.spec.bak
+
+# ========== PyInstaller ==========
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.spec.log
+
+# ========== Cache de la app ==========
+.moodle_cache.json
+moodle_cookies.json
+
+# ========== WebDriver Manager cache ==========
+.wdm/
+
+# ========== Entornos virtuales ==========
+venv/
+.venv/
+env/
+.env/
+
+# ========== IDEs ==========
+.vscode/
+.idea/
+*.code-workspace
+
+# ========== OS ==========
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ========== Logs ==========
+*.log
