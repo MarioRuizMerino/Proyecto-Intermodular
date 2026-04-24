@@ -1,8 +1,6 @@
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
-from webdriver_manager.chrome import ChromeDriverManager
 from urllib.parse import urlparse, parse_qs
 from bs4 import BeautifulSoup
 import json
@@ -20,12 +18,31 @@ class MoodleScraper:
 
     def _init_driver(self):
         chrome_options = Options()
-        # Puedes añadir modo headless aquí si quieres
-        # chrome_options.add_argument("--headless")
-        return webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()),
-            options=chrome_options
-        )
+        chrome_options.add_argument("--headless=new")   # navegador invisible
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+
+        # Detectar automáticamente el binario disponible (Chrome o Chromium)
+        binarios = [
+            # Linux — instalación nativa
+            "/usr/bin/google-chrome-stable",
+            "/usr/bin/google-chrome",
+            "/usr/bin/chromium",
+            "/usr/bin/chromium-browser",
+            # Linux — Flatpak (enlace estable independiente de versión)
+            "/var/lib/flatpak/app/com.google.Chrome/current/active/files/extra/google-chrome",
+            # Windows
+            r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            r"C:\Program Files (x86)\Google\Chrome\Application\chrome.exe",
+        ]
+        for b in binarios:
+            if os.path.exists(b):
+                chrome_options.binary_location = b
+                break
+
+        # Selenium Manager (Selenium 4.6+) descarga automáticamente
+        # el ChromeDriver correcto para la versión del navegador instalada.
+        return webdriver.Chrome(options=chrome_options)
 
     def login(self, username, password, actualizar_carga_fn=None):
         if actualizar_carga_fn:
