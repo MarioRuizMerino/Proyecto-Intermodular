@@ -56,7 +56,7 @@ def main():
     print("[BUILD] Generando ejecutable con PyInstaller...\n")
 
     result = subprocess.run(
-        [sys.executable, "-m", "PyInstaller", "MoodleAndalucia.spec", "--clean"],
+        [sys.executable, "-m", "PyInstaller", "scripts/MoodleAndalucia.spec", "--clean"],
         check=False,
     )
 

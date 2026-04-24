@@ -22,8 +22,8 @@ Para ello, estamos creando este ejecutable, que la gente se descargaría y pondr
 │   ├── scraper.py       # Login y scraping (Selenium + BS4)
 │   └── gui.py           # Interfaz gráfica (CustomTkinter)
 ├── scripts/
-│   └── build.py         # Script de build multiplataforma
-├── MoodleAndalucia.spec # Configuración PyInstaller
+│   ├── build.py         # Script de build multiplataforma
+│   └── MoodleAndalucia.spec # Configuración PyInstaller
 └── requirements.txt
 ```
 
