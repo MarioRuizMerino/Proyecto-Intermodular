@@ -391,70 +391,148 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
                         bg="#16213e", relief="flat")
     paned.pack(fill="both", expand=True)
 
-    # ── Panel izquierdo: árbol ──────────────────────────────────────────────────
-    tree_frame = ctk.CTkFrame(paned, corner_radius=0,
-                              fg_color=("gray92", "#1b2a4a"), border_width=0)
-    paned.add(tree_frame)
-    tree_frame.grid_rowconfigure(1, weight=1)
-    tree_frame.grid_columnconfigure(0, weight=1)
+    # ── Panel izquierdo: lista personalizada ────────────────────────────────────
+    left_frame = ctk.CTkFrame(paned, corner_radius=0,
+                              fg_color=("gray93", "#17223b"), border_width=0)
+    paned.add(left_frame)
+    left_frame.grid_rowconfigure(1, weight=1)
+    left_frame.grid_columnconfigure(0, weight=1)
 
-    ctk.CTkLabel(tree_frame, text="Cursos y Tareas",
-                 font=ctk.CTkFont(size=14, weight="bold"),
-                 text_color="#4fc3f7").grid(
-        row=0, column=0, columnspan=2, sticky="w", padx=18, pady=(14, 8))
+    ctk.CTkLabel(left_frame, text="Mis Tareas",
+                 font=ctk.CTkFont(size=15, weight="bold"),
+                 text_color=("#1a1a2e", "#90caf9")).grid(
+        row=0, column=0, sticky="w", padx=18, pady=(16, 10))
 
-    style = ttk.Style()
-    style.theme_use("default")
-    style.configure("Moodle.Treeview",
-                    background="#1b2a4a", foreground="#d0d8e8",
-                    fieldbackground="#1b2a4a", borderwidth=0,
-                    rowheight=36, font=("Segoe UI", 11))
-    style.configure("Moodle.Treeview.Heading",
-                    background="#152038", foreground="#7ab3cc",
-                    font=("Segoe UI", 10, "bold"), relief="flat")
-    style.map("Moodle.Treeview",
-              background=[("selected", "#1e4060")],
-              foreground=[("selected", "#ffffff")])
+    scroll_list = ctk.CTkScrollableFrame(
+        left_frame, fg_color=("gray93", "#17223b"),
+        scrollbar_fg_color=("gray80", "#1e2d47"), corner_radius=0)
+    scroll_list.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
+    scroll_list.grid_columnconfigure(0, weight=1)
 
-    tree = ttk.Treeview(tree_frame, style="Moodle.Treeview")
-    tree["columns"] = ("Fecha",)
-    tree.column("#0", width=340, anchor="w", minwidth=180)
-    tree.column("Fecha", width=160, anchor="center", minwidth=80)
-    tree.heading("#0", text="  Nombre", anchor="w")
-    tree.heading("Fecha", text="Fecha de entrega", anchor="center")
-    tree.tag_configure("nueva", foreground="#ff7043")
-    tree.tag_configure("curso", font=("Segoe UI", 11, "bold"),
-                       foreground="#90caf9")
+    # Estado de selección
+    sel_state = {"widget": None, "tarea": None}
 
-    sb = ctk.CTkScrollbar(tree_frame, command=tree.yview)
-    tree.configure(yscrollcommand=sb.set)
-    tree.grid(row=1, column=0, sticky="nsew", padx=(10, 0), pady=(0, 10))
-    sb.grid(row=1, column=1, sticky="ns", pady=(0, 10), padx=(0, 8))
+    def mostrar_detalle(tarea):
+        """Actualiza el panel derecho con los datos de la tarea."""
+        detail_name.configure(text=tarea["name"])
+        detail_type.configure(text=tarea.get("estado_entrega", ""))
+        notes_box.configure(state="normal")
+        notes_box.delete("0.0", "end")
+        lineas = []
+        if tarea.get("due_date"):        lineas.append(f"Fecha de entrega\n  {tarea['due_date']}\n")
+        if tarea.get("tiempo_restante"): lineas.append(f"Tiempo restante\n  {tarea['tiempo_restante']}\n")
+        if tarea.get("estado_entrega"):
+            icono = "✓" if "entregad" in tarea["estado_entrega"].lower() else "✗"
+            lineas.append(f"Estado\n  {icono}  {tarea['estado_entrega']}\n")
+        if tarea.get("estado_calific"):  lineas.append(f"Calificación\n  {tarea['estado_calific']}\n")
+        if tarea.get("nota"):            lineas.append(f"Nota\n  {tarea['nota']}\n")
+        desc = tarea.get("description", "")
+        if desc:
+            lineas.append("─" * 36 + "\n\nDescripción\n\n" + desc)
+        notes_box.insert("0.0", "\n".join(lineas) or "Sin información.")
+        notes_box.configure(state="disabled")
+        url = tarea.get("url", "")
+        current_url["url"] = url
+        open_btn.configure(
+            state="normal" if url else "disabled",
+            command=lambda u=url: webbrowser.open(u))
 
-    task_lookup = {}
+    def _select_row(row_widget, tarea):
+        if sel_state["widget"]:
+            sel_state["widget"].configure(fg_color="transparent")
+        sel_state["widget"] = row_widget
+        sel_state["tarea"] = tarea
+        row_widget.configure(fg_color=("gray80", "#1e3d5c"))
+        mostrar_detalle(tarea)
 
     def poblar_arbol(filtro=""):
-        for item in tree.get_children():
-            tree.delete(item)
-        task_lookup.clear()
+        for w in scroll_list.winfo_children():
+            w.destroy()
+        sel_state["widget"] = None
+        sel_state["tarea"] = None
+
         for curso in estado["courses"]:
             asgs = curso.get("assignments", [])
             if filtro:
                 asgs = [a for a in asgs if filtro.lower() in a["name"].lower()]
-            tiene_nuevas = any(a.get("es_nuevo", False) for a in asgs)
-            cid = tree.insert("", "end",
-                              text=("● " if tiene_nuevas else "  ") + curso["name"],
-                              values=("",), open=True, tags=("curso",))
+            if filtro and not asgs:
+                continue
+
+            total_c = len(asgs)
+            entregadas_c = sum(
+                1 for a in asgs if "entregad" in a.get("estado_entrega", "").lower())
+
+            # ── Cabecera de curso ────────────────────────────────────────────
+            ch = ctk.CTkFrame(scroll_list, fg_color=("gray85", "#1a2d47"),
+                              corner_radius=8, border_width=0)
+            ch.grid(sticky="ew", padx=10, pady=(10, 3))
+            ch.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(ch, text=curso["name"],
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=("#1a1a2e", "#90caf9"),
+                         anchor="w", wraplength=240).grid(
+                row=0, column=0, sticky="ew", padx=12, pady=(10, 2))
+            ctk.CTkLabel(ch,
+                         text=f"{entregadas_c} de {total_c} entregadas",
+                         font=ctk.CTkFont(size=10),
+                         text_color=("gray50", "#5a8aaa"), anchor="w").grid(
+                row=1, column=0, sticky="ew", padx=12, pady=(0, 8))
+
+            # ── Filas de tareas ──────────────────────────────────────────────
             for tarea in asgs:
+                est = tarea.get("estado_entrega", "")
                 es_nueva = tarea.get("es_nuevo", False)
-                tid = tree.insert(cid, "end",
-                                  text=("  ★  " if es_nueva else "      ") + tarea["name"],
-                                  values=(tarea.get("due_date", ""),),
-                                  tags=("nueva",) if es_nueva else ())
-                task_lookup[tid] = tarea
+                entregada = "entregad" in est.lower()
+                stripe_color = ("#81c784" if entregada
+                                else "#ff7043" if es_nueva
+                                else "#ffb74d")
+
+                row_f = ctk.CTkFrame(scroll_list, fg_color="transparent",
+                                     corner_radius=6, border_width=0)
+                row_f.grid(sticky="ew", padx=10, pady=1)
+                row_f.grid_columnconfigure(1, weight=1)
+
+                # Franja de color izquierda
+                ctk.CTkFrame(row_f, width=4, fg_color=stripe_color,
+                             corner_radius=2).grid(
+                    row=0, column=0, rowspan=2, sticky="ns",
+                    padx=(6, 8), pady=6)
+
+                # Nombre
+                nl = ctk.CTkLabel(row_f, text=tarea["name"],
+                                  font=ctk.CTkFont(size=11),
+                                  text_color=("gray10", "#d0d8e8"),
+                                  anchor="w", wraplength=220, justify="left")
+                nl.grid(row=0, column=1, sticky="ew", pady=(8, 1), padx=(0, 6))
+
+                # Fecha
+                due = tarea.get("due_date", "")
+                if due:
+                    ctk.CTkLabel(row_f, text=due,
+                                 font=ctk.CTkFont(size=10),
+                                 text_color=("gray45", "#6a8fa8"),
+                                 anchor="w").grid(
+                        row=1, column=1, sticky="w", pady=(0, 8), padx=(0, 6))
+
+                # Click y hover
+                def _make_cb(rf, t):
+                    def _click(e=None): _select_row(rf, t)
+                    def _enter(e=None):
+                        if rf is not sel_state["widget"]:
+                            rf.configure(fg_color=("gray86", "#1c3350"))
+                    def _leave(e=None):
+                        if rf is not sel_state["widget"]:
+                            rf.configure(fg_color="transparent")
+                    return _click, _enter, _leave
+
+                cb, en, lv = _make_cb(row_f, tarea)
+                for w in [row_f, nl]:
+                    w.bind("<Button-1>", cb)
+                    w.bind("<Enter>", en)
+                    w.bind("<Leave>", lv)
 
     poblar_arbol()
-    search_var.trace_add("write", lambda *args: poblar_arbol(search_var.get()))
+    search_var.trace_add("write", lambda *a: poblar_arbol(search_var.get()))
 
     # ── Panel derecho: detalle ──────────────────────────────────────────────────
     detail_frame = ctk.CTkFrame(paned, corner_radius=0,
@@ -463,7 +541,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     detail_frame.grid_rowconfigure(2, weight=1)
     detail_frame.grid_columnconfigure(0, weight=1)
 
-    # Cabecera del detalle
     dh = ctk.CTkFrame(detail_frame, fg_color=("gray82", "#1b2d44"),
                       corner_radius=0, height=72, border_width=0)
     dh.grid(row=0, column=0, sticky="ew")
@@ -479,7 +556,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
                                text_color=("gray50", "#7ab3cc"), anchor="w")
     detail_type.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 10))
 
-    # Cuerpo
     notes_box = ctk.CTkTextbox(detail_frame, corner_radius=0,
                                 fg_color=("gray88", "#162236"),
                                 font=ctk.CTkFont(family="Segoe UI", size=12),
@@ -492,44 +568,7 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
                               font=ctk.CTkFont(size=12, weight="bold"),
                               state="disabled", command=lambda: None)
     open_btn.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 16))
-
     current_url = {"url": None}
-
-    def on_tree_select(event):
-        sel = tree.focus()
-        if not sel:
-            return
-        raw = tree.item(sel)["text"].lstrip("● ★  ")
-        es_tarea = sel in task_lookup
-        detail_name.configure(text=raw)
-        detail_type.configure(text="Tarea" if es_tarea else "Curso")
-        notes_box.configure(state="normal")
-        notes_box.delete("0.0", "end")
-        if es_tarea:
-            t = task_lookup[sel]
-            lineas = []
-            if t.get("due_date"):        lineas.append(f"Fecha de entrega\n  {t['due_date']}\n")
-            if t.get("tiempo_restante"): lineas.append(f"Tiempo restante\n  {t['tiempo_restante']}\n")
-            if t.get("estado_entrega"):
-                icono = "✓" if "entregad" in t["estado_entrega"].lower() else "✗"
-                lineas.append(f"Estado\n  {icono}  {t['estado_entrega']}\n")
-            if t.get("estado_calific"):  lineas.append(f"Calificación\n  {t['estado_calific']}\n")
-            if t.get("nota"):            lineas.append(f"Nota\n  {t['nota']}\n")
-            desc = t.get("description", "")
-            if desc:
-                lineas.append("─" * 36 + "\n\nDescripción\n\n" + desc)
-            notes_box.insert("0.0", "\n".join(lineas) or "Sin información.")
-            url = t.get("url", "")
-            current_url["url"] = url
-            open_btn.configure(
-                state="normal" if url else "disabled",
-                command=lambda u=url: webbrowser.open(u))
-        else:
-            notes_box.insert("0.0", f"{raw}\n\n─────────────\n\nSelecciona una tarea para ver su información.")
-            open_btn.configure(state="disabled")
-        notes_box.configure(state="disabled")
-
-    tree.bind("<<TreeviewSelect>>", on_tree_select)
 
 
 
