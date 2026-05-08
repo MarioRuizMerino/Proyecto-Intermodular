@@ -4,12 +4,21 @@ from tkinter import ttk
 import webbrowser
 from src.config import PROVINCIAS
 from tkinter import PanedWindow
+import traceback
+
+
+def _ignorar_after_errors(exc, val, tb):
+    """Suprime los errores 'invalid command name' que CustomTkinter genera
+    al cerrar ventanas con callbacks de animación pendientes."""
+    if "invalid command name" not in str(val):
+        traceback.print_exception(exc, val, tb)
 
 def seleccionar_provincia():
     ventana = ctk.CTk()
     ventana.title("Moodle — Selecciona provincia")
     ventana.geometry("360x260")
     ventana.resizable(False, False)
+    ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
@@ -43,6 +52,7 @@ def pedir_credenciales(error=False, usuario_guardado=None):
     ventana.title("Moodle — Iniciar sesión")
     ventana.geometry("400x500")
     ventana.resizable(False, False)
+    ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
@@ -135,6 +145,7 @@ def mostrar_cargando(mensaje="Cargando..."):
     ventana.title("Moodle — Cargando")
     ventana.geometry("380x220")
     ventana.resizable(False, False)
+    ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
 
     frame = ctk.CTkFrame(ventana, corner_radius=20, fg_color="#1a1a2e")
@@ -182,8 +193,21 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     app.title("Moodle Dashboard — Cursos y Tareas")
     app.geometry("1280x760")
     app.minsize(900, 600)
+    app.report_callback_exception = _ignorar_after_errors
 
     tema_actual = {"modo": "dark"}
+
+    def calcular_stats():
+        """Devuelve (total, pendientes, entregadas) según estado_entrega real."""
+        total = pendientes = entregadas = 0
+        for c in estado["courses"]:
+            for a in c.get("assignments", []):
+                total += 1
+                if "entregad" in a.get("estado_entrega", "").lower():
+                    entregadas += 1
+                else:
+                    pendientes += 1
+        return total, pendientes, entregadas
 
     app.grid_rowconfigure(0, weight=1)
     app.grid_columnconfigure(1, weight=1)
@@ -210,21 +234,31 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     nav_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
     nav_frame.grid(row=4, column=0, sticky="ew", padx=10)
 
-    nav_items = [
-        ("🏠  Inicio", None),
-        ("📖  Cursos", None),
-        ("📝  Tareas", None),
-        ("📊  Progreso", None),
-        ("⚙️   Ajustes", None),
+    nav_labels = [
+        ("🏠  Inicio",   "Panel de Control"),
+        ("📖  Cursos",   "Mis Cursos"),
+        ("📝  Tareas",   "Todas las Tareas"),
+        ("📊  Progreso", "Progreso por Curso"),
+        ("⚙️   Ajustes", "Ajustes"),
     ]
 
     nav_buttons = []
+
+    def mostrar_vista(idx):
+        for v in vistas:
+            v.grid_remove()
+        vistas[idx].grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        header_title.configure(text=nav_labels[idx][1])
+        if idx in (1, 3):   # Cursos y Progreso se regeneran al entrar
+            refrescar_vista(idx)
+
     def nav_click(idx):
         for i, btn in enumerate(nav_buttons):
             btn.configure(fg_color="#1e3a5f" if i == idx else "transparent",
                           text_color="white" if i == idx else "#aaaacc")
+        mostrar_vista(idx)
 
-    for i, (label, cmd) in enumerate(nav_items):
+    for i, (label, _) in enumerate(nav_labels):
         btn = ctk.CTkButton(nav_frame, text=label,
                             font=ctk.CTkFont(size=14),
                             height=42, anchor="w",
@@ -263,8 +297,9 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     header = ctk.CTkFrame(main, fg_color=("gray85", "#0f3460"), corner_radius=0, height=60)
     header.grid(row=0, column=0, sticky="ew")
     header.grid_propagate(False)
-    ctk.CTkLabel(header, text="Panel de Control",
-                 font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=25, pady=15)
+    header_title = ctk.CTkLabel(header, text="Panel de Control",
+                               font=ctk.CTkFont(size=20, weight="bold"))
+    header_title.pack(side="left", padx=25, pady=15)
 
     # Indicador de carga en segundo plano
     carga_label = ctk.CTkLabel(header, text="⏳ Actualizando datos...",
@@ -290,40 +325,56 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
                             border_width=1, border_color=("gray80", "#2a3f6f"))
         card.grid(row=0, column=col, padx=8, sticky="nsew", ipady=6)
         ctk.CTkLabel(card, text=icon, font=ctk.CTkFont(size=30)).pack(pady=(15, 2))
-        ctk.CTkLabel(card, text=str(value),
-                     font=ctk.CTkFont(size=32, weight="bold"),
-                     text_color=color).pack()
+        val_lbl = ctk.CTkLabel(card, text=str(value),
+                               font=ctk.CTkFont(size=32, weight="bold"),
+                               text_color=color)
+        val_lbl.pack()
         ctk.CTkLabel(card, text=label,
                      font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(0, 15))
-        return card
+        return val_lbl
 
+    total_tareas, pendientes, entregadas = calcular_stats()
     total_cursos = len(estado["courses"])
-    total_tareas = sum(len(c.get("assignments", [])) for c in estado["courses"])
 
-    make_card(cards_frame, 0, "📚", "Cursos", total_cursos, "#4fc3f7")
-    make_card(cards_frame, 1, "📝", "Tareas totales", total_tareas, "#81c784")
-    make_card(cards_frame, 2, "✅", "Pendientes", total_tareas, "#ffb74d")
+    lbl_cursos     = make_card(cards_frame, 0, "📚", "Cursos",         total_cursos, "#4fc3f7")
+    lbl_total      = make_card(cards_frame, 1, "📝", "Tareas totales", total_tareas, "#81c784")
+    lbl_pendientes = make_card(cards_frame, 2, "⏳", "Pendientes",     pendientes,   "#ffb74d")
 
     prog_card = ctk.CTkFrame(cards_frame, corner_radius=14,
                               fg_color=("white", "#1b2a4a"),
                               border_width=1, border_color=("gray80", "#2a3f6f"))
     prog_card.grid(row=0, column=3, padx=8, sticky="nsew", ipady=6)
     ctk.CTkLabel(prog_card, text="📈", font=ctk.CTkFont(size=30)).pack(pady=(15, 2))
-    ctk.CTkLabel(prog_card, text="Progreso",
+    ctk.CTkLabel(prog_card, text="Progreso (entregadas)",
                  font=ctk.CTkFont(size=12), text_color="gray").pack()
     prog_bar = ctk.CTkProgressBar(prog_card, height=14, corner_radius=7,
                                    progress_color="#4fc3f7")
     prog_bar.pack(fill="x", padx=20, pady=8)
-    prog_val = min(1.0, total_tareas / 30) if total_tareas > 0 else 0
+    prog_val = entregadas / total_tareas if total_tareas > 0 else 0
     prog_bar.set(prog_val)
-    ctk.CTkLabel(prog_card, text=f"{int(prog_val*100)}%",
-                 font=ctk.CTkFont(size=18, weight="bold"),
-                 text_color="#4fc3f7").pack(pady=(0, 15))
+    lbl_progreso = ctk.CTkLabel(prog_card, text=f"{int(prog_val * 100)}%",
+                                font=ctk.CTkFont(size=18, weight="bold"),
+                                text_color="#4fc3f7")
+    lbl_progreso.pack(pady=(0, 15))
 
-    bottom = ctk.CTkFrame(main, fg_color="transparent")
-    bottom.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+    def actualizar_cards():
+        t, p, e = calcular_stats()
+        c = len(estado["courses"])
+        lbl_cursos.configure(text=str(c))
+        lbl_total.configure(text=str(t))
+        lbl_pendientes.configure(text=str(p))
+        v = e / t if t > 0 else 0
+        prog_bar.set(v)
+        lbl_progreso.configure(text=f"{int(v * 100)}%")
 
-    paned = PanedWindow(bottom, orient="horizontal", sashwidth=6)
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VISTA 0 — INICIO: árbol de cursos + panel detalle
+    # ═══════════════════════════════════════════════════════════════════════════
+    vista_inicio = ctk.CTkFrame(main, fg_color="transparent")
+    vista_inicio.grid_rowconfigure(0, weight=1)
+    vista_inicio.grid_columnconfigure(0, weight=1)
+
+    paned = PanedWindow(vista_inicio, orient="horizontal", sashwidth=6)
     paned.pack(fill="both", expand=True)
 
     # === ÁRBOL DE CURSOS ===
@@ -492,17 +543,145 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
 
     tree.bind("<<TreeviewSelect>>", on_tree_select)
 
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VISTA 1 — CURSOS: cards con progreso por curso
+    # ═══════════════════════════════════════════════════════════════════════════
+    vista_cursos = ctk.CTkScrollableFrame(main, fg_color="transparent")
+    vista_cursos.grid_columnconfigure((0, 1, 2), weight=1)
+
+    def _poblar_cursos():
+        for w in vista_cursos.winfo_children():
+            w.destroy()
+        for idx_c, curso in enumerate(estado["courses"]):
+            asgs = curso.get("assignments", [])
+            total_c = len(asgs)
+            entregadas_c = sum(1 for a in asgs if "entregad" in a.get("estado_entrega", "").lower())
+            prog_c = entregadas_c / total_c if total_c > 0 else 0
+            card = ctk.CTkFrame(vista_cursos, corner_radius=12,
+                                fg_color=("white", "#1b2a4a"),
+                                border_width=1, border_color=("gray80", "#2a3f6f"))
+            card.grid(row=idx_c // 3, column=idx_c % 3, padx=10, pady=10, sticky="nsew")
+            ctk.CTkLabel(card, text="📖", font=ctk.CTkFont(size=28)).pack(pady=(16, 4))
+            ctk.CTkLabel(card, text=curso["name"],
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         wraplength=200, justify="center").pack(padx=12)
+            ctk.CTkLabel(card, text=f"{total_c} tareas  ·  {total_c - entregadas_c} pendientes",
+                         font=ctk.CTkFont(size=11), text_color="gray").pack(pady=(4, 6))
+            pb = ctk.CTkProgressBar(card, height=8, corner_radius=4, progress_color="#4fc3f7")
+            pb.pack(fill="x", padx=20, pady=(0, 4))
+            pb.set(prog_c)
+            ctk.CTkLabel(card, text=f"{int(prog_c * 100)}% entregado",
+                         font=ctk.CTkFont(size=10), text_color="#4fc3f7").pack(pady=(0, 14))
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VISTA 2 — TAREAS: lista plana de todas las tareas
+    # ═══════════════════════════════════════════════════════════════════════════
+    vista_tareas = ctk.CTkFrame(main, corner_radius=0, fg_color="transparent")
+    vista_tareas.grid_rowconfigure(0, weight=1)
+    vista_tareas.grid_columnconfigure(0, weight=1)
+
+    tree_tareas = ttk.Treeview(vista_tareas, style="Moodle.Treeview", show="headings")
+    tree_tareas["columns"] = ("Curso", "Tarea", "Estado", "Fecha")
+    for col, w, anc in [("Curso", 220, "w"), ("Tarea", 280, "w"),
+                        ("Estado", 150, "center"), ("Fecha", 140, "center")]:
+        tree_tareas.column(col, width=w, anchor=anc)
+        tree_tareas.heading(col, text=col)
+    tree_tareas.tag_configure("entregada", foreground="#81c784")
+    tree_tareas.tag_configure("pendiente", foreground="#ffb74d")
+
+    sb_t = ctk.CTkScrollbar(vista_tareas, command=tree_tareas.yview)
+    tree_tareas.configure(yscrollcommand=sb_t.set)
+    tree_tareas.grid(row=0, column=0, sticky="nsew")
+    sb_t.grid(row=0, column=1, sticky="ns")
+
+    def _poblar_tareas():
+        for item in tree_tareas.get_children():
+            tree_tareas.delete(item)
+        for curso in estado["courses"]:
+            for tarea in curso.get("assignments", []):
+                est = tarea.get("estado_entrega", "—")
+                tag = "entregada" if "entregad" in est.lower() else "pendiente"
+                tree_tareas.insert("", "end",
+                                   values=(curso["name"], tarea["name"],
+                                           est, tarea.get("due_date", "—")),
+                                   tags=(tag,))
+
+    _poblar_tareas()
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VISTA 3 — PROGRESO: barras por curso
+    # ═══════════════════════════════════════════════════════════════════════════
+    vista_progreso = ctk.CTkScrollableFrame(main, fg_color="transparent")
+
+    def _poblar_progreso():
+        for w in vista_progreso.winfo_children():
+            w.destroy()
+        for curso in estado["courses"]:
+            asgs = curso.get("assignments", [])
+            total_c = len(asgs)
+            entregadas_c = sum(1 for a in asgs if "entregad" in a.get("estado_entrega", "").lower())
+            prog_c = entregadas_c / total_c if total_c > 0 else 0
+            row_f = ctk.CTkFrame(vista_progreso, fg_color=("white", "#1b2a4a"),
+                                 corner_radius=10, border_width=1,
+                                 border_color=("gray80", "#2a3f6f"))
+            row_f.pack(fill="x", padx=10, pady=5)
+            top_f = ctk.CTkFrame(row_f, fg_color="transparent")
+            top_f.pack(fill="x", padx=14, pady=(10, 2))
+            ctk.CTkLabel(top_f, text=curso["name"],
+                         font=ctk.CTkFont(size=12, weight="bold"), anchor="w").pack(side="left")
+            ctk.CTkLabel(top_f, text=f"{entregadas_c}/{total_c}",
+                         font=ctk.CTkFont(size=12), text_color="gray").pack(side="right")
+            pb = ctk.CTkProgressBar(row_f, height=12, corner_radius=6, progress_color="#4fc3f7")
+            pb.pack(fill="x", padx=14, pady=(0, 10))
+            pb.set(prog_c)
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # VISTA 4 — AJUSTES
+    # ═══════════════════════════════════════════════════════════════════════════
+    vista_ajustes = ctk.CTkFrame(main, corner_radius=0, fg_color="transparent")
+    aj_inner = ctk.CTkFrame(vista_ajustes, corner_radius=16,
+                            fg_color=("white", "#1b2a4a"),
+                            border_width=1, border_color=("gray80", "#2a3f6f"))
+    aj_inner.pack(padx=30, pady=30, fill="x")
+    ctk.CTkLabel(aj_inner, text="⚙️  Ajustes",
+                 font=ctk.CTkFont(size=16, weight="bold")).pack(anchor="w", padx=20, pady=(20, 10))
+    ctk.CTkFrame(aj_inner, height=1, fg_color="#2a3f6f").pack(fill="x", padx=20)
+    aj_row = ctk.CTkFrame(aj_inner, fg_color="transparent")
+    aj_row.pack(fill="x", padx=20, pady=16)
+    ctk.CTkLabel(aj_row, text="Tema de la aplicación",
+                 font=ctk.CTkFont(size=13)).pack(side="left")
+    ctk.CTkButton(aj_row, text="Cambiar tema", width=140, height=34,
+                  corner_radius=8, fg_color="#2a2a4a", hover_color="#3a3a6a",
+                  font=ctk.CTkFont(size=12), command=toggle_tema).pack(side="right")
+    ctk.CTkLabel(aj_inner, text=f"Provincia activa: {provincia_nombre}",
+                 font=ctk.CTkFont(size=12), text_color="gray").pack(anchor="w", padx=20, pady=(0, 20))
+
+    # ═══════════════════════════════════════════════════════════════════════════
+    # SISTEMA DE VISTAS: mostrar/ocultar según nav
+    # ═══════════════════════════════════════════════════════════════════════════
+    vistas = [vista_inicio, vista_cursos, vista_tareas, vista_progreso, vista_ajustes]
+
+    def refrescar_vista(idx):
+        if idx == 1:
+            _poblar_cursos()
+        elif idx == 3:
+            _poblar_progreso()
+
+    for v in vistas:
+        v.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
+        v.grid_remove()
+    vista_inicio.grid()   # Vista por defecto
+
     # ========== POLLING: refrescar cuando el hilo termine ==========
     def check_actualizacion():
         if resultado is not None and resultado.get("courses") is not None:
-            nuevos = resultado["courses"]
-            estado["courses"] = nuevos
+            estado["courses"] = resultado["courses"]
             poblar_arbol(search_var.get())
+            _poblar_tareas()
+            actualizar_cards()
             carga_label.configure(text="✅ Datos actualizados", text_color="#81c784")
-            # Ocultar el mensaje tras 3 segundos
             app.after(3000, lambda: carga_label.configure(text=""))
         else:
-            # Seguir comprobando cada segundo
             app.after(1000, check_actualizacion)
 
     if resultado is not None:
