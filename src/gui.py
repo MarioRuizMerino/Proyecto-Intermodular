@@ -602,84 +602,183 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
                          font=ctk.CTkFont(size=10), text_color="#4fc3f7").pack(pady=(0, 14))
 
     # ═══════════════════════════════════════════════════════════════════════════
-    # VISTA 2 — TAREAS: lista plana de todas las tareas
+    # VISTA 2 — TAREAS: lista personalizada con detalle lateral
     # ═══════════════════════════════════════════════════════════════════════════
     vista_tareas = ctk.CTkFrame(main, corner_radius=0, fg_color="transparent")
-    vista_tareas.grid_rowconfigure(0, weight=3)
-    vista_tareas.grid_rowconfigure(2, weight=1)
+    vista_tareas.grid_rowconfigure(0, weight=1)
     vista_tareas.grid_columnconfigure(0, weight=1)
 
-    tree_tareas = ttk.Treeview(vista_tareas, style="Moodle.Treeview", show="headings")
-    tree_tareas["columns"] = ("Curso", "Tarea", "Estado", "Fecha")
-    _t_pcts = {"Curso": 0.22, "Tarea": 0.35, "Estado": 0.25, "Fecha": 0.18}
-    for col, w, anc in [("Curso", 220, "w"), ("Tarea", 280, "w"),
-                        ("Estado", 150, "center"), ("Fecha", 140, "center")]:
-        tree_tareas.column(col, width=w, minwidth=60, anchor=anc, stretch=True)
-        tree_tareas.heading(col, text=col)
-    tree_tareas.tag_configure("entregada", foreground="#81c784")
-    tree_tareas.tag_configure("pendiente", foreground="#ffb74d")
+    paned_t = PanedWindow(vista_tareas, orient="horizontal", sashwidth=5,
+                          bg="#16213e", relief="flat")
+    paned_t.pack(fill="both", expand=True)
 
-    sb_t = ctk.CTkScrollbar(vista_tareas, command=tree_tareas.yview)
-    tree_tareas.configure(yscrollcommand=sb_t.set)
-    tree_tareas.grid(row=0, column=0, sticky="nsew")
-    sb_t.grid(row=0, column=1, sticky="ns")
+    # ── Panel izquierdo: lista ──────────────────────────────────────────────────
+    left_t = ctk.CTkFrame(paned_t, corner_radius=0,
+                          fg_color=("gray93", "#17223b"), border_width=0)
+    paned_t.add(left_t)
+    left_t.grid_rowconfigure(1, weight=1)
+    left_t.grid_columnconfigure(0, weight=1)
 
-    def _resize_tareas(event):
-        total = max(event.width - 20, 200)
-        for col, pct in _t_pcts.items():
-            tree_tareas.column(col, width=int(total * pct))
-    vista_tareas.bind("<Configure>", _resize_tareas)
+    ctk.CTkLabel(left_t, text="Todas las Tareas",
+                 font=ctk.CTkFont(size=15, weight="bold"),
+                 text_color=("#1a1a2e", "#90caf9")).grid(
+        row=0, column=0, sticky="w", padx=18, pady=(16, 10))
 
-    ctk.CTkFrame(vista_tareas, height=1, fg_color="#2a3f6f").grid(
-        row=1, column=0, columnspan=2, sticky="ew")
-    detalle_t = ctk.CTkTextbox(vista_tareas, corner_radius=0, height=110,
-                               fg_color=("gray95", "#0f3460"),
-                               font=ctk.CTkFont(size=12))
-    detalle_t.grid(row=2, column=0, columnspan=2, sticky="nsew")
-    detalle_t.insert("0.0", "Haz clic en una fila para ver el detalle de la tarea.")
-    detalle_t.configure(state="disabled")
+    scroll_t = ctk.CTkScrollableFrame(
+        left_t, fg_color=("gray93", "#17223b"),
+        scrollbar_fg_color=("gray80", "#1e2d47"), corner_radius=0)
+    scroll_t.grid(row=1, column=0, sticky="nsew")
+    scroll_t.grid_columnconfigure(0, weight=1)
 
-    task_lookup_t = {}
+    sel_t = {"widget": None, "tarea": None}
+
+    # ── Panel derecho: detalle ──────────────────────────────────────────────────
+    detail_t_frame = ctk.CTkFrame(paned_t, corner_radius=0,
+                                  fg_color=("gray88", "#162236"), border_width=0)
+    paned_t.add(detail_t_frame)
+    detail_t_frame.grid_rowconfigure(2, weight=1)
+    detail_t_frame.grid_columnconfigure(0, weight=1)
+
+    dh_t = ctk.CTkFrame(detail_t_frame, fg_color=("gray82", "#1b2d44"),
+                        corner_radius=0, height=72, border_width=0)
+    dh_t.grid(row=0, column=0, sticky="ew")
+    dh_t.grid_propagate(False)
+    dh_t.grid_columnconfigure(0, weight=1)
+    det_t_name = ctk.CTkLabel(dh_t, text="Selecciona una tarea",
+                              font=ctk.CTkFont(size=14, weight="bold"),
+                              text_color=("gray10", "#e8f0fe"),
+                              wraplength=320, justify="left", anchor="w")
+    det_t_name.grid(row=0, column=0, sticky="ew", padx=18, pady=(14, 2))
+    det_t_sub = ctk.CTkLabel(dh_t, text="",
+                             font=ctk.CTkFont(size=11),
+                             text_color=("gray50", "#7ab3cc"), anchor="w")
+    det_t_sub.grid(row=1, column=0, sticky="ew", padx=18, pady=(0, 10))
+
+    notes_t = ctk.CTkTextbox(detail_t_frame, corner_radius=0,
+                              fg_color=("gray88", "#162236"),
+                              font=ctk.CTkFont(family="Segoe UI", size=12),
+                              wrap="word", border_width=0)
+    notes_t.grid(row=2, column=0, sticky="nsew", padx=16, pady=(12, 8))
+
+    open_t_btn = ctk.CTkButton(detail_t_frame, text="Abrir en el navegador",
+                               height=38, corner_radius=8,
+                               fg_color="#1565c0", hover_color="#1976d2",
+                               font=ctk.CTkFont(size=12, weight="bold"),
+                               state="disabled", command=lambda: None)
+    open_t_btn.grid(row=3, column=0, sticky="ew", padx=16, pady=(0, 16))
+
+    def _mostrar_detalle_t(tarea):
+        det_t_name.configure(text=tarea["name"])
+        det_t_sub.configure(text=tarea.get("estado_entrega", ""))
+        notes_t.configure(state="normal")
+        notes_t.delete("0.0", "end")
+        lineas = []
+        if tarea.get("due_date"):        lineas.append(f"Fecha de entrega\n  {tarea['due_date']}\n")
+        if tarea.get("tiempo_restante"): lineas.append(f"Tiempo restante\n  {tarea['tiempo_restante']}\n")
+        if tarea.get("estado_entrega"):
+            icono = "✓" if "entregad" in tarea["estado_entrega"].lower() else "✗"
+            lineas.append(f"Estado\n  {icono}  {tarea['estado_entrega']}\n")
+        if tarea.get("estado_calific"):  lineas.append(f"Calificación\n  {tarea['estado_calific']}\n")
+        if tarea.get("nota"):            lineas.append(f"Nota\n  {tarea['nota']}\n")
+        desc = tarea.get("description", "")
+        if desc:
+            lineas.append("─" * 36 + "\n\nDescripción\n\n" + desc)
+        notes_t.insert("0.0", "\n".join(lineas) or "Sin información.")
+        notes_t.configure(state="disabled")
+        url = tarea.get("url", "")
+        open_t_btn.configure(
+            state="normal" if url else "disabled",
+            command=lambda u=url: webbrowser.open(u))
+
+    def _select_t(row_widget, tarea):
+        if sel_t["widget"]:
+            sel_t["widget"].configure(fg_color="transparent")
+        sel_t["widget"] = row_widget
+        sel_t["tarea"] = tarea
+        row_widget.configure(fg_color=("gray80", "#1e3d5c"))
+        _mostrar_detalle_t(tarea)
 
     def _poblar_tareas():
-        for item in tree_tareas.get_children():
-            tree_tareas.delete(item)
-        task_lookup_t.clear()
+        for w in scroll_t.winfo_children():
+            w.destroy()
+        sel_t["widget"] = None
+        sel_t["tarea"] = None
+
         for curso in estado["courses"]:
-            for tarea in curso.get("assignments", []):
-                est = tarea.get("estado_entrega", "—")
-                tag = "entregada" if "entregad" in est.lower() else "pendiente"
-                iid = tree_tareas.insert("", "end",
-                                        values=(curso["name"], tarea["name"],
-                                                est, tarea.get("due_date", "—")),
-                                        tags=(tag,))
-                task_lookup_t[iid] = tarea
+            asgs = curso.get("assignments", [])
+            if not asgs:
+                continue
+            total_c = len(asgs)
+            entregadas_c = sum(
+                1 for a in asgs if "entregad" in a.get("estado_entrega", "").lower())
 
-    def _on_tareas_select(event):
-        sel = tree_tareas.focus()
-        if not sel or sel not in task_lookup_t:
-            return
-        t = task_lookup_t[sel]
-        lineas = [f"📝  {t['name']}", ""]
-        if t.get("due_date"):        lineas.append(f"📅  Fecha: {t['due_date']}")
-        if t.get("tiempo_restante"): lineas.append(f"⏱️  Tiempo restante: {t['tiempo_restante']}")
-        if t.get("estado_entrega"):  lineas.append(f"📋  Estado: {t['estado_entrega']}")
-        if t.get("estado_calific"):  lineas.append(f"🎓  Calificación: {t['estado_calific']}")
-        if t.get("nota"):            lineas.append(f"🏆  Nota: {t['nota']}")
-        desc = t.get("description", "")
-        if desc:
-            lineas.append("\n" + "─" * 30)
-            lineas.append(desc[:400] + ("..." if len(desc) > 400 else ""))
-        detalle_t.configure(state="normal")
-        detalle_t.delete("0.0", "end")
-        detalle_t.insert("0.0", "\n".join(lineas))
-        detalle_t.configure(state="disabled")
+            # Cabecera de curso
+            ch = ctk.CTkFrame(scroll_t, fg_color=("gray85", "#1a2d47"),
+                              corner_radius=8, border_width=0)
+            ch.grid(sticky="ew", padx=10, pady=(10, 3))
+            ch.grid_columnconfigure(0, weight=1)
+            ctk.CTkLabel(ch, text=curso["name"],
+                         font=ctk.CTkFont(size=12, weight="bold"),
+                         text_color=("#1a1a2e", "#90caf9"),
+                         anchor="w", wraplength=240).grid(
+                row=0, column=0, sticky="ew", padx=12, pady=(10, 2))
+            ctk.CTkLabel(ch, text=f"{entregadas_c} de {total_c} entregadas",
+                         font=ctk.CTkFont(size=10),
+                         text_color=("gray50", "#5a8aaa"), anchor="w").grid(
+                row=1, column=0, sticky="ew", padx=12, pady=(0, 8))
 
-    tree_tareas.bind("<<TreeviewSelect>>", _on_tareas_select)
+            # Filas de tareas
+            for tarea in asgs:
+                est = tarea.get("estado_entrega", "")
+                es_nueva = tarea.get("es_nuevo", False)
+                entregada = "entregad" in est.lower()
+                stripe = ("#81c784" if entregada
+                          else "#ff7043" if es_nueva
+                          else "#ffb74d")
+
+                row_f = ctk.CTkFrame(scroll_t, fg_color="transparent",
+                                     corner_radius=6, border_width=0)
+                row_f.grid(sticky="ew", padx=10, pady=1)
+                row_f.grid_columnconfigure(1, weight=1)
+
+                ctk.CTkFrame(row_f, width=4, fg_color=stripe,
+                             corner_radius=2).grid(
+                    row=0, column=0, rowspan=2, sticky="ns",
+                    padx=(6, 8), pady=6)
+
+                nl = ctk.CTkLabel(row_f, text=tarea["name"],
+                                  font=ctk.CTkFont(size=11),
+                                  text_color=("gray10", "#d0d8e8"),
+                                  anchor="w", wraplength=220, justify="left")
+                nl.grid(row=0, column=1, sticky="ew", pady=(8, 1), padx=(0, 6))
+
+                due = tarea.get("due_date", "")
+                if due:
+                    ctk.CTkLabel(row_f, text=due,
+                                 font=ctk.CTkFont(size=10),
+                                 text_color=("gray45", "#6a8fa8"),
+                                 anchor="w").grid(
+                        row=1, column=1, sticky="w", pady=(0, 8), padx=(0, 6))
+
+                def _mk(rf, t):
+                    def _click(e=None): _select_t(rf, t)
+                    def _enter(e=None):
+                        if rf is not sel_t["widget"]:
+                            rf.configure(fg_color=("gray86", "#1c3350"))
+                    def _leave(e=None):
+                        if rf is not sel_t["widget"]:
+                            rf.configure(fg_color="transparent")
+                    return _click, _enter, _leave
+
+                cb, en, lv = _mk(row_f, tarea)
+                for w in [row_f, nl]:
+                    w.bind("<Button-1>", cb)
+                    w.bind("<Enter>", en)
+                    w.bind("<Leave>", lv)
+
     _poblar_tareas()
 
 
-    # ═══════════════════════════════════════════════════════════════════════════
     # VISTA 3 — PROGRESO: barras por curso
     # ═══════════════════════════════════════════════════════════════════════════
     vista_progreso = ctk.CTkScrollableFrame(main, fg_color="transparent")
