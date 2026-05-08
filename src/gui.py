@@ -190,10 +190,22 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     estado = {"courses": courses}
 
     app = ctk.CTk()
-    app.title("Moodle Dashboard — Cursos y Tareas")
+    app.title("Moodle Andalucía")
     app.geometry("1280x760")
     app.minsize(900, 600)
     app.report_callback_exception = _ignorar_after_errors
+
+    # ── Escalado DPI automático ──────────────────────────────────────────────────────
+    # Tk 'scaling' devuelve píxeles/punto (base 1.333 = 96 DPI).
+    # Normalizamos a 1.0 en 96 DPI para que CustomTkinter escale bien.
+    try:
+        _tk_scale = float(app.tk.call('tk', 'scaling'))
+        _factor = round(max(1.0, min(2.0, _tk_scale / 1.333)), 1)
+        if _factor != 1.0:
+            ctk.set_widget_scaling(_factor)
+            ctk.set_window_scaling(_factor)
+    except Exception:
+        pass
 
     tema_actual = {"modo": "dark"}
 
@@ -270,7 +282,8 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
         btn.pack(fill="x", pady=3)
         nav_buttons.append(btn)
 
-    nav_click(0)
+    # Solo highlight visual inicial — la vista se activa después de definir 'vistas'
+    nav_buttons[0].configure(fg_color="#1e3a5f", text_color="white")
 
     def toggle_tema():
         modo = tema_actual["modo"]
@@ -310,9 +323,9 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
         carga_label.pack_forget()
 
     search_var = tk.StringVar()
-    search_entry = ctk.CTkEntry(header, placeholder_text="🔍 Buscar tarea...",
-                                textvariable=search_var, width=220, height=34)
-    search_entry.pack(side="right", padx=20, pady=12)
+    search_entry = ctk.CTkEntry(header, placeholder_text="🔍 Buscar...",
+                                textvariable=search_var, width=160, height=34)
+    search_entry.pack(side="right", padx=15, pady=12)
 
     # --- CARDS DE RESUMEN ---
     cards_frame = ctk.CTkFrame(main, fg_color="transparent")
@@ -577,14 +590,16 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     # VISTA 2 — TAREAS: lista plana de todas las tareas
     # ═══════════════════════════════════════════════════════════════════════════
     vista_tareas = ctk.CTkFrame(main, corner_radius=0, fg_color="transparent")
-    vista_tareas.grid_rowconfigure(0, weight=1)
+    vista_tareas.grid_rowconfigure(0, weight=3)
+    vista_tareas.grid_rowconfigure(2, weight=1)
     vista_tareas.grid_columnconfigure(0, weight=1)
 
     tree_tareas = ttk.Treeview(vista_tareas, style="Moodle.Treeview", show="headings")
     tree_tareas["columns"] = ("Curso", "Tarea", "Estado", "Fecha")
+    _t_pcts = {"Curso": 0.22, "Tarea": 0.35, "Estado": 0.25, "Fecha": 0.18}
     for col, w, anc in [("Curso", 220, "w"), ("Tarea", 280, "w"),
                         ("Estado", 150, "center"), ("Fecha", 140, "center")]:
-        tree_tareas.column(col, width=w, anchor=anc)
+        tree_tareas.column(col, width=w, minwidth=60, anchor=anc, stretch=True)
         tree_tareas.heading(col, text=col)
     tree_tareas.tag_configure("entregada", foreground="#81c784")
     tree_tareas.tag_configure("pendiente", foreground="#ffb74d")
@@ -594,19 +609,60 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     tree_tareas.grid(row=0, column=0, sticky="nsew")
     sb_t.grid(row=0, column=1, sticky="ns")
 
+    def _resize_tareas(event):
+        total = max(event.width - 20, 200)
+        for col, pct in _t_pcts.items():
+            tree_tareas.column(col, width=int(total * pct))
+    vista_tareas.bind("<Configure>", _resize_tareas)
+
+    ctk.CTkFrame(vista_tareas, height=1, fg_color="#2a3f6f").grid(
+        row=1, column=0, columnspan=2, sticky="ew")
+    detalle_t = ctk.CTkTextbox(vista_tareas, corner_radius=0, height=110,
+                               fg_color=("gray95", "#0f3460"),
+                               font=ctk.CTkFont(size=12))
+    detalle_t.grid(row=2, column=0, columnspan=2, sticky="nsew")
+    detalle_t.insert("0.0", "Haz clic en una fila para ver el detalle de la tarea.")
+    detalle_t.configure(state="disabled")
+
+    task_lookup_t = {}
+
     def _poblar_tareas():
         for item in tree_tareas.get_children():
             tree_tareas.delete(item)
+        task_lookup_t.clear()
         for curso in estado["courses"]:
             for tarea in curso.get("assignments", []):
                 est = tarea.get("estado_entrega", "—")
                 tag = "entregada" if "entregad" in est.lower() else "pendiente"
-                tree_tareas.insert("", "end",
-                                   values=(curso["name"], tarea["name"],
-                                           est, tarea.get("due_date", "—")),
-                                   tags=(tag,))
+                iid = tree_tareas.insert("", "end",
+                                        values=(curso["name"], tarea["name"],
+                                                est, tarea.get("due_date", "—")),
+                                        tags=(tag,))
+                task_lookup_t[iid] = tarea
 
+    def _on_tareas_select(event):
+        sel = tree_tareas.focus()
+        if not sel or sel not in task_lookup_t:
+            return
+        t = task_lookup_t[sel]
+        lineas = [f"📝  {t['name']}", ""]
+        if t.get("due_date"):        lineas.append(f"📅  Fecha: {t['due_date']}")
+        if t.get("tiempo_restante"): lineas.append(f"⏱️  Tiempo restante: {t['tiempo_restante']}")
+        if t.get("estado_entrega"):  lineas.append(f"📋  Estado: {t['estado_entrega']}")
+        if t.get("estado_calific"):  lineas.append(f"🎓  Calificación: {t['estado_calific']}")
+        if t.get("nota"):            lineas.append(f"🏆  Nota: {t['nota']}")
+        desc = t.get("description", "")
+        if desc:
+            lineas.append("\n" + "─" * 30)
+            lineas.append(desc[:400] + ("..." if len(desc) > 400 else ""))
+        detalle_t.configure(state="normal")
+        detalle_t.delete("0.0", "end")
+        detalle_t.insert("0.0", "\n".join(lineas))
+        detalle_t.configure(state="disabled")
+
+    tree_tareas.bind("<<TreeviewSelect>>", _on_tareas_select)
     _poblar_tareas()
+
 
     # ═══════════════════════════════════════════════════════════════════════════
     # VISTA 3 — PROGRESO: barras por curso
