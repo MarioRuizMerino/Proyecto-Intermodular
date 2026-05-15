@@ -6,6 +6,35 @@ from src.config import PROVINCIAS
 from tkinter import PanedWindow
 import traceback
 
+# ── DPI y centrado ────────────────────────────────────────────────────────────
+_dpi_aplicado = {"ok": False}
+
+def _setup_dpi():
+    """Detecta la escala del sistema y la aplica a CustomTkinter (una sola vez)."""
+    if _dpi_aplicado["ok"]:
+        return
+    try:
+        _tmp = tk.Tk()
+        _tmp.withdraw()
+        _tk_scale = float(_tmp.tk.call('tk', 'scaling'))
+        _tmp.destroy()
+        _factor = round(max(1.0, min(2.0, _tk_scale / 1.333)), 1)
+        if _factor != 1.0:
+            ctk.set_widget_scaling(_factor)
+            ctk.set_window_scaling(_factor)
+    except Exception:
+        pass
+    _dpi_aplicado["ok"] = True
+
+def _centrar(ventana, ancho, alto):
+    """Centra la ventana en el monitor principal."""
+    ventana.update_idletasks()
+    sw = ventana.winfo_screenwidth()
+    sh = ventana.winfo_screenheight()
+    x = (sw - ancho) // 2
+    y = (sh - alto) // 2
+    ventana.geometry(f"{ancho}x{alto}+{x}+{y}")
+
 
 def _ignorar_after_errors(exc, val, tb):
     """Suprime los errores 'invalid command name' que CustomTkinter genera
@@ -14,13 +43,14 @@ def _ignorar_after_errors(exc, val, tb):
         traceback.print_exception(exc, val, tb)
 
 def seleccionar_provincia():
+    _setup_dpi()
     ventana = ctk.CTk()
     ventana.title("Moodle — Selecciona provincia")
-    ventana.geometry("360x260")
     ventana.resizable(False, False)
     ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
+    _centrar(ventana, 380, 280)
 
     ctk.CTkLabel(ventana, text="📚 Moodle Andalucía",
                  font=ctk.CTkFont(size=20, weight="bold")).pack(pady=(30, 5))
@@ -48,13 +78,14 @@ def seleccionar_provincia():
 
 
 def pedir_credenciales(error=False, usuario_guardado=None):
+    _setup_dpi()
     ventana = ctk.CTk()
     ventana.title("Moodle — Iniciar sesión")
-    ventana.geometry("400x500")
     ventana.resizable(False, False)
     ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
+    _centrar(ventana, 420, 520)
 
     result = {"username": None, "password": None}
 
@@ -141,12 +172,13 @@ def pedir_credenciales(error=False, usuario_guardado=None):
     return result["username"], result["password"]
 
 def mostrar_cargando(mensaje="Cargando..."):
+    _setup_dpi()
     ventana = ctk.CTk()
     ventana.title("Moodle — Cargando")
-    ventana.geometry("380x220")
     ventana.resizable(False, False)
     ventana.report_callback_exception = _ignorar_after_errors
     ctk.set_appearance_mode("dark")
+    _centrar(ventana, 400, 230)
 
     frame = ctk.CTkFrame(ventana, corner_radius=20, fg_color="#1a1a2e")
     frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.88)
@@ -194,18 +226,8 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     app.geometry("1280x760")
     app.minsize(900, 600)
     app.report_callback_exception = _ignorar_after_errors
+    _setup_dpi()  # ya aplicado desde las ventanas previas; no-op si se llama de nuevo
 
-    # ── Escalado DPI automático ──────────────────────────────────────────────────────
-    # Tk 'scaling' devuelve píxeles/punto (base 1.333 = 96 DPI).
-    # Normalizamos a 1.0 en 96 DPI para que CustomTkinter escale bien.
-    try:
-        _tk_scale = float(app.tk.call('tk', 'scaling'))
-        _factor = round(max(1.0, min(2.0, _tk_scale / 1.333)), 1)
-        if _factor != 1.0:
-            ctk.set_widget_scaling(_factor)
-            ctk.set_window_scaling(_factor)
-    except Exception:
-        pass
 
     tema_actual = {"modo": "dark"}
 
