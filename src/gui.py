@@ -431,11 +431,10 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
     scroll_list.grid(row=1, column=0, sticky="nsew", padx=0, pady=0)
     scroll_list.grid_columnconfigure(0, weight=1)
 
-    # Estado de selección
-    sel_state = {"widget": None, "tarea": None}
+    # Estado de selección (guarda también el color original para restaurarlo)
+    sel_state = {"widget": None, "tarea": None, "orig_bg": None}
 
     def mostrar_detalle(tarea):
-        """Actualiza el panel derecho con los datos de la tarea."""
         detail_name.configure(text=tarea["name"])
         detail_type.configure(text=tarea.get("estado_entrega", ""))
         notes_box.configure(state="normal")
@@ -459,12 +458,13 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
             state="normal" if url else "disabled",
             command=lambda u=url: webbrowser.open(u))
 
-    def _select_row(row_widget, tarea):
+    def _select_row(row_widget, tarea, orig_bg):
         if sel_state["widget"]:
-            sel_state["widget"].configure(fg_color="transparent")
+            sel_state["widget"].configure(fg_color=sel_state["orig_bg"])
         sel_state["widget"] = row_widget
         sel_state["tarea"] = tarea
-        row_widget.configure(fg_color=("gray80", "#1e3d5c"))
+        sel_state["orig_bg"] = orig_bg
+        row_widget.configure(fg_color=("gray78", "#1e3d5c"))
         mostrar_detalle(tarea)
 
     def poblar_arbol(filtro=""):
@@ -472,6 +472,7 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
             w.destroy()
         sel_state["widget"] = None
         sel_state["tarea"] = None
+        sel_state["orig_bg"] = None
 
         for curso in estado["courses"]:
             asgs = curso.get("assignments", [])
@@ -484,77 +485,88 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, resultado=None):
             entregadas_c = sum(
                 1 for a in asgs if "entregad" in a.get("estado_entrega", "").lower())
 
-            # ── Cabecera de curso ────────────────────────────────────────────
-            ch = ctk.CTkFrame(scroll_list, fg_color=("gray85", "#1a2d47"),
-                              corner_radius=8, border_width=0)
-            ch.grid(sticky="ew", padx=10, pady=(10, 3))
-            ch.grid_columnconfigure(0, weight=1)
-            ctk.CTkLabel(ch, text=curso["name"],
-                         font=ctk.CTkFont(size=12, weight="bold"),
-                         text_color=("#1a1a2e", "#90caf9"),
-                         anchor="w", wraplength=240).grid(
-                row=0, column=0, sticky="ew", padx=12, pady=(10, 2))
-            ctk.CTkLabel(ch,
-                         text=f"{entregadas_c} de {total_c} entregadas",
-                         font=ctk.CTkFont(size=10),
-                         text_color=("gray50", "#5a8aaa"), anchor="w").grid(
-                row=1, column=0, sticky="ew", padx=12, pady=(0, 8))
+            # ── Cabecera de sección (curso) ─────────────────────────────────
+            sec_f = ctk.CTkFrame(scroll_list, fg_color="transparent", border_width=0)
+            sec_f.pack(fill="x", padx=14, pady=(16, 0))
+            ctk.CTkLabel(sec_f, text=curso["name"].upper(),
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         text_color=("gray55", "#6a8fa8"),
+                         anchor="w").pack(side="left")
+            prog_color = "#81c784" if entregadas_c == total_c else "#ffb74d"
+            ctk.CTkLabel(sec_f, text=f"{entregadas_c}/{total_c}",
+                         font=ctk.CTkFont(size=10, weight="bold"),
+                         text_color=prog_color).pack(side="right")
+            # Separador
+            ctk.CTkFrame(scroll_list, height=1,
+                         fg_color=("gray80", "#283a52"),
+                         corner_radius=0).pack(fill="x", padx=14, pady=(3, 4))
 
             # ── Filas de tareas ──────────────────────────────────────────────
-            for tarea in asgs:
+            for i, tarea in enumerate(asgs):
                 est = tarea.get("estado_entrega", "")
                 es_nueva = tarea.get("es_nuevo", False)
                 entregada = "entregad" in est.lower()
-                stripe_color = ("#81c784" if entregada
+
+                estado_color = ("#81c784" if entregada
                                 else "#ff7043" if es_nueva
                                 else "#ffb74d")
+                estado_text = ("Entregada" if entregada
+                               else "Nueva" if es_nueva
+                               else "Pendiente")
 
-                row_f = ctk.CTkFrame(scroll_list, fg_color="transparent",
-                                     corner_radius=6, border_width=0)
-                row_f.grid(sticky="ew", padx=10, pady=1)
-                row_f.grid_columnconfigure(1, weight=1)
+                row_bg = ("gray91", "#1c2d42") if i % 2 == 0 else ("gray93", "#17223b")
 
-                # Franja de color izquierda
-                ctk.CTkFrame(row_f, width=4, fg_color=stripe_color,
-                             corner_radius=2).grid(
-                    row=0, column=0, rowspan=2, sticky="ns",
-                    padx=(6, 8), pady=6)
+                row_f = ctk.CTkFrame(scroll_list, fg_color=row_bg,
+                                     corner_radius=0, border_width=0)
+                row_f.pack(fill="x")
 
-                # Nombre
-                nl = ctk.CTkLabel(row_f, text=tarea["name"],
-                                  font=ctk.CTkFont(size=11),
-                                  text_color=("gray10", "#d0d8e8"),
-                                  anchor="w", wraplength=220, justify="left")
-                nl.grid(row=0, column=1, sticky="ew", pady=(8, 1), padx=(0, 6))
+                # Inner con padding
+                inner = ctk.CTkFrame(row_f, fg_color="transparent", border_width=0)
+                inner.pack(fill="x", padx=14, pady=9)
 
-                # Fecha
+                # Derecha: estado + fecha
+                right = ctk.CTkFrame(inner, fg_color="transparent", border_width=0)
+                right.pack(side="right", padx=(8, 0))
+
+                ctk.CTkLabel(right, text=estado_text,
+                             font=ctk.CTkFont(size=10, weight="bold"),
+                             text_color=estado_color).pack(side="left", padx=(0, 6))
+
                 due = tarea.get("due_date", "")
                 if due:
-                    ctk.CTkLabel(row_f, text=due,
+                    parts = due.split(" ")
+                    due_short = " ".join(parts[1:4]) if len(parts) >= 3 else due
+                    ctk.CTkLabel(right, text=due_short,
                                  font=ctk.CTkFont(size=10),
-                                 text_color=("gray45", "#6a8fa8"),
-                                 anchor="w").grid(
-                        row=1, column=1, sticky="w", pady=(0, 8), padx=(0, 6))
+                                 text_color=("gray50", "#5a7a95")).pack(side="left")
 
-                # Click y hover
-                def _make_cb(rf, t):
-                    def _click(e=None): _select_row(rf, t)
+                # Izquierda: nombre
+                nl = ctk.CTkLabel(inner, text=tarea["name"],
+                                  font=ctk.CTkFont(size=11),
+                                  text_color=("gray10", "#d0d8e8"),
+                                  anchor="w", justify="left")
+                nl.pack(side="left", fill="x", expand=True)
+
+                # Interactividad
+                def _mk(rf, t, bg):
+                    def _click(e=None): _select_row(rf, t, bg)
                     def _enter(e=None):
                         if rf is not sel_state["widget"]:
-                            rf.configure(fg_color=("gray86", "#1c3350"))
+                            rf.configure(fg_color=("gray85", "#1c3a58"))
                     def _leave(e=None):
                         if rf is not sel_state["widget"]:
-                            rf.configure(fg_color="transparent")
+                            rf.configure(fg_color=bg)
                     return _click, _enter, _leave
 
-                cb, en, lv = _make_cb(row_f, tarea)
-                for w in [row_f, nl]:
-                    w.bind("<Button-1>", cb)
-                    w.bind("<Enter>", en)
-                    w.bind("<Leave>", lv)
+                cb, en, lv = _mk(row_f, tarea, row_bg)
+                for ww in [row_f, inner, nl]:
+                    ww.bind("<Button-1>", cb)
+                    ww.bind("<Enter>", en)
+                    ww.bind("<Leave>", lv)
 
     poblar_arbol()
     search_var.trace_add("write", lambda *a: poblar_arbol(search_var.get()))
+
 
     # ── Panel derecho: detalle ──────────────────────────────────────────────────
     detail_frame = ctk.CTkFrame(paned, corner_radius=0,
