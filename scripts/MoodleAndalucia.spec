@@ -10,12 +10,15 @@ import customtkinter
 # Ruta dinámica a customtkinter (funciona en cualquier entorno/OS)
 ctk_path = str(Path(customtkinter.__file__).parent)
 
+SPEC_DIR = Path(SPECPATH)
+ROOT     = SPEC_DIR.parent
+
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    [str(ROOT / 'main.py')],
+    pathex=[str(ROOT)],
     binaries=[],
     datas=[
-        ('src', 'src'),
+        (str(ROOT / 'src'), 'src'),
         (ctk_path, 'customtkinter'),
     ],
     hiddenimports=[
