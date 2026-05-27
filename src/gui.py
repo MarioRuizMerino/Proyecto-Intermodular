@@ -7,6 +7,58 @@ from tkinter import PanedWindow
 import queue as queue_module
 
 
+# ─────────────────────────────────────────────
+#  Paleta de colores consistente (claro, oscuro)
+# ─────────────────────────────────────────────
+C = {
+    # Fondos principales
+    "bg_app":        ("#e8edf5", "#16213e"),
+    "bg_sidebar":    ("#dce3f0", "#1a1a2e"),
+    "bg_header":     ("#c8d3e8", "#0f3460"),
+    "bg_card":       ("#ffffff", "#1b2a4a"),
+    "bg_card_alt":   ("#f0f4fc", "#1b2a4a"),
+    "bg_frame":      ("#f5f7fc", "#1a1a2e"),
+    "bg_loading":    ("#f0f4fc", "#1a1a2e"),
+    "bg_tree":       ("#ffffff", "#1b2a4a"),
+    "bg_tree_field": ("#ffffff", "#1b2a4a"),
+    "bg_notes":      ("#f5f7fc", "#0f3460"),
+    "bg_detail":     ("#ffffff", "#1b2a4a"),
+    "bg_btn_nav":    ("#c0cce0", "#1e3a5f"),
+    "bg_btn_nav_hov":("#a8b8d4", "#2a4a6f"),
+    "bg_btn_open":   ("#1e3a5f", "#1e3a5f"),
+    "bg_btn_open_hov":("#2a4f7f", "#2a4f7f"),
+    "bg_toggle":     ("#c8d3e8", "#2a2a4a"),
+    "bg_toggle_hov": ("#b0bdd6", "#3a3a6a"),
+    "bg_sep":        ("#b0bdd6", "#333355"),
+    "bg_border":     ("#b0bdd6", "#2a3f6f"),
+    "bg_login":      ("#f0f4fc", "#1a1a2e"),
+    "bg_login_frame":("#ffffff", "#1a1a2e"),
+    # Textos
+    "txt_main":      ("#1a2540", "#e0e0e0"),
+    "txt_muted":     ("#5a6a88", "#aaaacc"),
+    "txt_accent":    ("#1565c0", "#4fc3f7"),
+    "txt_warn":      ("#e65100", "#ffb74d"),
+    "txt_err":       ("#c62828", "#ef5350"),
+    "txt_green":     ("#2e7d32", "#81c784"),
+    "txt_heading":   ("#0d47a1", "#4fc3f7"),
+    # Treeview (ttk — sólo hex, se ajustan en update_tree_style)
+    "tree_bg_light": "#ffffff",
+    "tree_fg_light": "#1a2540",
+    "tree_sel_light":"#c0cce0",
+    "tree_hdr_light":"#dce3f0",
+    "tree_hdr_fg_light":"#0d47a1",
+    "tree_bg_dark":  "#1b2a4a",
+    "tree_fg_dark":  "#e0e0e0",
+    "tree_sel_dark": "#1e3a5f",
+    "tree_hdr_dark": "#0f3460",
+    "tree_hdr_fg_dark":"#4fc3f7",
+}
+
+
+def _is_dark():
+    return ctk.get_appearance_mode() == "Dark"
+
+
 def seleccionar_provincia():
     ventana = ctk.CTk()
     ventana.title("Moodle — Selecciona provincia")
@@ -52,21 +104,21 @@ def pedir_credenciales(error=False, usuario_guardado=None):
     result = {"username": None, "password": None}
 
     frame = ctk.CTkFrame(ventana, corner_radius=20,
-                         fg_color="#1a1a2e",
-                         border_width=1, border_color="#2a2a5a")
+                         fg_color=C["bg_login_frame"],
+                         border_width=1, border_color=C["bg_border"])
     frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.92)
 
     ctk.CTkLabel(frame, text="📚", font=ctk.CTkFont(size=44)).pack(pady=(30, 4))
     ctk.CTkLabel(frame, text="Bienvenido a Moodle",
                  font=ctk.CTkFont(size=20, weight="bold")).pack()
     ctk.CTkLabel(frame, text="Introduce tus credenciales de la Junta de Andalucía",
-                 font=ctk.CTkFont(size=11), text_color="gray",
+                 font=ctk.CTkFont(size=11), text_color=C["txt_muted"],
                  wraplength=300, justify="center").pack(pady=(4, 16))
 
     error_label = ctk.CTkLabel(
         frame,
         text="⚠️  Usuario o contraseña incorrectos. Inténtalo de nuevo." if error else "",
-        text_color="#ef5350",
+        text_color=C["txt_err"],
         font=ctk.CTkFont(size=11),
         wraplength=300,
         justify="center"
@@ -105,9 +157,9 @@ def pedir_credenciales(error=False, usuario_guardado=None):
 
     ctk.CTkCheckBox(frame, text="Mostrar contraseña", variable=mostrar_var,
                     command=toggle_pass, font=ctk.CTkFont(size=11),
-                    text_color="gray").pack(anchor="w", padx=32, pady=(0, 16))
+                    text_color=C["txt_muted"]).pack(anchor="w", padx=32, pady=(0, 16))
 
-    campos_label = ctk.CTkLabel(frame, text="", text_color="#ef5350",
+    campos_label = ctk.CTkLabel(frame, text="", text_color=C["txt_err"],
                                  font=ctk.CTkFont(size=11))
     campos_label.pack()
 
@@ -135,12 +187,6 @@ def pedir_credenciales(error=False, usuario_guardado=None):
 
 
 def mostrar_cargando(mensaje_inicial="Cargando...", progress_queue=None):
-    """
-    Crea ventana de carga animada.
-    Devuelve (ventana, cerrar_fn).
-    La ventana expone ventana._actualizar(titulo, subtitulo) para actualizar
-    el mensaje de forma segura desde el hilo principal vía after().
-    """
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
@@ -149,7 +195,7 @@ def mostrar_cargando(mensaje_inicial="Cargando...", progress_queue=None):
     ventana.geometry("420x240")
     ventana.resizable(False, False)
 
-    frame = ctk.CTkFrame(ventana, corner_radius=20, fg_color="#1a1a2e")
+    frame = ctk.CTkFrame(ventana, corner_radius=20, fg_color=C["bg_loading"])
     frame.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.88, relheight=0.88)
 
     ctk.CTkLabel(frame, text="⏳", font=ctk.CTkFont(size=36)).pack(pady=(20, 4))
@@ -166,7 +212,7 @@ def mostrar_cargando(mensaje_inicial="Cargando...", progress_queue=None):
     barra.start()
 
     sub_label = ctk.CTkLabel(frame, text="Por favor, espera...",
-                              font=ctk.CTkFont(size=11), text_color="#aaaacc",
+                              font=ctk.CTkFont(size=11), text_color=C["txt_muted"],
                               wraplength=360, justify="center")
     sub_label.pack()
 
@@ -174,7 +220,6 @@ def mostrar_cargando(mensaje_inicial="Cargando...", progress_queue=None):
         msg_label.configure(text=nuevo_titulo)
         sub_label.configure(text=nuevo_sub if nuevo_sub else "Por favor, espera...")
 
-    # Exponemos el método directamente en la ventana para que main.py pueda llamarlo
     ventana._actualizar = _actualizar
 
     def cerrar():
@@ -188,7 +233,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
     ctk.set_appearance_mode("dark")
     ctk.set_default_color_theme("blue")
 
-    # Estado mutable: empieza con la caché y se reemplaza curso a curso
     estado = {"courses": list(courses)}
 
     app = ctk.CTk()
@@ -201,9 +245,23 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
     app.grid_rowconfigure(0, weight=1)
     app.grid_columnconfigure(1, weight=1)
 
-    # ========== SIDEBAR ==========
+    # ─── Helpers para aplicar estilos dinámicos del Treeview ───
+    def update_tree_style():
+        dark = _is_dark()
+        style.configure("Moodle.Treeview",
+                        background=C["tree_bg_dark"] if dark else C["tree_bg_light"],
+                        foreground=C["tree_fg_dark"] if dark else C["tree_fg_light"],
+                        fieldbackground=C["tree_bg_dark"] if dark else C["tree_bg_light"])
+        style.configure("Moodle.Treeview.Heading",
+                        background=C["tree_hdr_dark"] if dark else C["tree_hdr_light"],
+                        foreground=C["tree_hdr_fg_dark"] if dark else C["tree_hdr_fg_light"])
+        style.map("Moodle.Treeview",
+                  background=[("selected", C["tree_sel_dark"] if dark else C["tree_sel_light"])],
+                  foreground=[("selected", "white" if dark else C["tree_fg_light"])])
+
+    # ════════════════ SIDEBAR ════════════════
     sidebar = ctk.CTkFrame(app, width=260, corner_radius=0,
-                           fg_color=("#1a1a2e", "#1a1a2e"))
+                           fg_color=C["bg_sidebar"])
     sidebar.grid(row=0, column=0, sticky="nsew")
     sidebar.grid_propagate(False)
     sidebar.grid_rowconfigure(5, weight=1)
@@ -212,12 +270,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
         row=0, column=0, pady=(30, 0), padx=20, sticky="w")
     ctk.CTkLabel(sidebar, text="Moodle",
                  font=ctk.CTkFont(size=26, weight="bold"),
-                 text_color="#4fc3f7").grid(row=1, column=0, pady=(0, 4), padx=20, sticky="w")
+                 text_color=C["txt_accent"]).grid(row=1, column=0, pady=(0, 4), padx=20, sticky="w")
     ctk.CTkLabel(sidebar, text=f"Junta de Andalucía · {provincia_nombre}",
-                 font=ctk.CTkFont(size=11), text_color="gray").grid(
+                 font=ctk.CTkFont(size=11), text_color=C["txt_muted"]).grid(
         row=2, column=0, pady=(0, 25), padx=20, sticky="w")
 
-    sep = ctk.CTkFrame(sidebar, height=1, fg_color="#333355")
+    sep = ctk.CTkFrame(sidebar, height=1, fg_color=C["bg_sep"])
     sep.grid(row=3, column=0, sticky="ew", padx=15, pady=(0, 20))
 
     nav_frame = ctk.CTkFrame(sidebar, fg_color="transparent")
@@ -235,16 +293,18 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
 
     def nav_click(idx):
         for i, btn in enumerate(nav_buttons):
-            btn.configure(fg_color="#1e3a5f" if i == idx else "transparent",
-                          text_color="white" if i == idx else "#aaaacc")
+            btn.configure(
+                fg_color=C["bg_btn_nav"] if i == idx else "transparent",
+                text_color=C["txt_main"] if i == idx else C["txt_muted"]
+            )
 
     for i, (label, cmd) in enumerate(nav_items):
         btn = ctk.CTkButton(nav_frame, text=label,
                             font=ctk.CTkFont(size=14),
                             height=42, anchor="w",
                             fg_color="transparent",
-                            text_color="#aaaacc",
-                            hover_color="#1e3a5f",
+                            text_color=C["txt_muted"],
+                            hover_color=C["bg_btn_nav_hov"],
                             corner_radius=8,
                             command=lambda i=i: nav_click(i))
         btn.pack(fill="x", pady=3)
@@ -258,32 +318,35 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
         tema_actual["modo"] = nuevo
         ctk.set_appearance_mode(nuevo)
         tema_btn.configure(text="☀️  Modo Claro" if nuevo == "light" else "🌙  Modo Oscuro")
+        # Actualizar estilos del Treeview (ttk no responde automáticamente)
+        app.after(50, update_tree_style)
+        # Refrescar el árbol para que los colores de tags se vean correctos
+        app.after(80, lambda: poblar_arbol(search_var.get()))
 
     tema_btn = ctk.CTkButton(sidebar, text="🌙  Modo Oscuro",
                               font=ctk.CTkFont(size=12),
-                              height=36, fg_color="#2a2a4a",
-                              hover_color="#3a3a6a",
+                              height=36, fg_color=C["bg_toggle"],
+                              hover_color=C["bg_toggle_hov"],
                               corner_radius=8,
                               command=toggle_tema)
     tema_btn.grid(row=6, column=0, sticky="ew", padx=15, pady=(0, 20))
 
-    # ========== CONTENIDO PRINCIPAL ==========
-    main_frame = ctk.CTkFrame(app, corner_radius=0, fg_color=("gray92", "#16213e"))
+    # ════════════════ CONTENIDO PRINCIPAL ════════════════
+    main_frame = ctk.CTkFrame(app, corner_radius=0, fg_color=C["bg_app"])
     main_frame.grid(row=0, column=1, sticky="nsew")
     main_frame.grid_rowconfigure(2, weight=1)
     main_frame.grid_columnconfigure(0, weight=1)
 
     # --- Cabecera ---
-    header = ctk.CTkFrame(main_frame, fg_color=("gray85", "#0f3460"),
+    header = ctk.CTkFrame(main_frame, fg_color=C["bg_header"],
                           corner_radius=0, height=60)
     header.grid(row=0, column=0, sticky="ew")
     header.grid_propagate(False)
     ctk.CTkLabel(header, text="Panel de Control",
                  font=ctk.CTkFont(size=20, weight="bold")).pack(side="left", padx=25, pady=15)
 
-    # Indicador de actualización en la cabecera (solo visible cuando hay progreso_queue)
     actualizando_label = ctk.CTkLabel(header, text="",
-                                       font=ctk.CTkFont(size=11), text_color="#ffb74d")
+                                       font=ctk.CTkFont(size=11), text_color=C["txt_warn"])
     actualizando_label.pack(side="left", padx=8, pady=15)
     if progreso_queue:
         actualizando_label.configure(text="⏳ Actualizando datos en segundo plano...")
@@ -300,8 +363,8 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
 
     def make_card(parent, col, icon, label, value, color):
         card = ctk.CTkFrame(parent, corner_radius=14,
-                            fg_color=("white", "#1b2a4a"),
-                            border_width=1, border_color=("gray80", "#2a3f6f"))
+                            fg_color=C["bg_card"],
+                            border_width=1, border_color=C["bg_border"])
         card.grid(row=0, column=col, padx=8, sticky="nsew", ipady=6)
         ctk.CTkLabel(card, text=icon, font=ctk.CTkFont(size=30)).pack(pady=(15, 2))
         val_lbl = ctk.CTkLabel(card, text=str(value),
@@ -309,23 +372,23 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                                text_color=color)
         val_lbl.pack()
         ctk.CTkLabel(card, text=label,
-                     font=ctk.CTkFont(size=12), text_color="gray").pack(pady=(0, 15))
+                     font=ctk.CTkFont(size=12), text_color=C["txt_muted"]).pack(pady=(0, 15))
         return val_lbl
 
     total_cursos = len(estado["courses"])
     total_tareas = sum(len(c.get("assignments", [])) for c in estado["courses"])
 
-    card_cursos_val    = make_card(cards_frame, 0, "📚", "Cursos",        total_cursos,  "#4fc3f7")
-    card_tareas_val    = make_card(cards_frame, 1, "📝", "Tareas totales", total_tareas, "#81c784")
-    card_pendientes_val = make_card(cards_frame, 2, "✅", "Pendientes",    total_tareas, "#ffb74d")
+    card_cursos_val     = make_card(cards_frame, 0, "📚", "Cursos",         total_cursos,  "#4fc3f7")
+    card_tareas_val     = make_card(cards_frame, 1, "📝", "Tareas totales", total_tareas,  "#81c784")
+    card_pendientes_val = make_card(cards_frame, 2, "✅", "Pendientes",     total_tareas,  "#ffb74d")
 
     prog_card = ctk.CTkFrame(cards_frame, corner_radius=14,
-                              fg_color=("white", "#1b2a4a"),
-                              border_width=1, border_color=("gray80", "#2a3f6f"))
+                              fg_color=C["bg_card"],
+                              border_width=1, border_color=C["bg_border"])
     prog_card.grid(row=0, column=3, padx=8, sticky="nsew", ipady=6)
     ctk.CTkLabel(prog_card, text="📈", font=ctk.CTkFont(size=30)).pack(pady=(15, 2))
     ctk.CTkLabel(prog_card, text="Progreso",
-                 font=ctk.CTkFont(size=12), text_color="gray").pack()
+                 font=ctk.CTkFont(size=12), text_color=C["txt_muted"]).pack()
     prog_bar = ctk.CTkProgressBar(prog_card, height=14, corner_radius=7,
                                    progress_color="#4fc3f7")
     prog_bar.pack(fill="x", padx=20, pady=8)
@@ -341,18 +404,18 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
     bottom = ctk.CTkFrame(main_frame, fg_color="transparent")
     bottom.grid(row=2, column=0, sticky="nsew", padx=20, pady=(0, 20))
 
-    paned = PanedWindow(bottom, orient="horizontal", sashwidth=6)
+    paned = PanedWindow(bottom, orient="horizontal", sashwidth=6,
+                        bg="#b0bdd6" if not _is_dark() else "#2a3f6f")
     paned.pack(fill="both", expand=True)
 
-    # === ÁRBOL DE CURSOS ===
+    # ══ ÁRBOL DE CURSOS ══
     tree_frame = ctk.CTkFrame(paned, corner_radius=14,
-                              fg_color=("white", "#1b2a4a"),
-                              border_width=1, border_color=("gray80", "#2a3f6f"))
+                              fg_color=C["bg_tree"],
+                              border_width=1, border_color=C["bg_border"])
     paned.add(tree_frame)
     tree_frame.grid_rowconfigure(1, weight=1)
     tree_frame.grid_columnconfigure(0, weight=1)
 
-    # Cabecera del árbol con label de estado
     tree_hdr = ctk.CTkFrame(tree_frame, fg_color="transparent")
     tree_hdr.grid(row=0, column=0, columnspan=2, sticky="ew", padx=15, pady=(12, 6))
     tree_hdr.grid_columnconfigure(0, weight=1)
@@ -361,20 +424,24 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                  font=ctk.CTkFont(size=15, weight="bold")).grid(row=0, column=0, sticky="w")
 
     curso_estado_label = ctk.CTkLabel(tree_hdr, text="",
-                                       font=ctk.CTkFont(size=11), text_color="#ffb74d")
+                                       font=ctk.CTkFont(size=11), text_color=C["txt_warn"])
     curso_estado_label.grid(row=0, column=1, sticky="e")
 
     style = ttk.Style()
     style.theme_use("default")
     style.configure("Moodle.Treeview",
-                    background="#1b2a4a", foreground="#e0e0e0",
-                    fieldbackground="#1b2a4a", borderwidth=0,
-                    rowheight=28, font=("Segoe UI", 11))
+                    background=C["tree_bg_dark"],
+                    foreground=C["tree_fg_dark"],
+                    fieldbackground=C["tree_bg_dark"],
+                    borderwidth=0,
+                    rowheight=28,
+                    font=("Segoe UI", 11))
     style.configure("Moodle.Treeview.Heading",
-                    background="#0f3460", foreground="#4fc3f7",
+                    background=C["tree_hdr_dark"],
+                    foreground=C["tree_hdr_fg_dark"],
                     font=("Segoe UI", 11, "bold"), relief="flat")
     style.map("Moodle.Treeview",
-              background=[("selected", "#1e3a5f")],
+              background=[("selected", C["tree_sel_dark"])],
               foreground=[("selected", "white")])
 
     tree = ttk.Treeview(tree_frame, style="Moodle.Treeview")
@@ -436,8 +503,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
     poblar_arbol()
     search_var.trace_add("write", lambda *a: poblar_arbol(search_var.get()))
 
-    # ========== POLLING DE PROGRESO (segundo plano) ==========
-    # Mapa nombre→índice para actualizar cursos por nombre
     curso_index = {c["name"]: i for i, c in enumerate(estado["courses"])}
 
     def poll_progreso():
@@ -449,11 +514,9 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                 kind = msg[0]
 
                 if kind == "total":
-                    # Cuántos cursos hay en total (para sincronizar si la caché tenía distinto número)
                     pass
 
                 elif kind == "curso":
-                    # Empieza a cargar el curso i/total
                     _, i, total, nombre = msg
                     curso_estado_label.configure(
                         text=f"⏳ Actualizando curso {i}/{total}: {nombre[:30]}..."
@@ -461,14 +524,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                     actualizando_label.configure(
                         text=f"⏳ Actualizando... ({i}/{total})"
                     )
-                    # Marcar el curso como "cargando" en el árbol
                     if nombre in curso_index:
                         idx = curso_index[nombre]
                         estado["courses"][idx]["_cargando"] = True
                     poblar_arbol(search_var.get())
 
                 elif kind == "curso_listo":
-                    # Curso i ya tiene sus tareas actualizadas
                     _, i, curso_nuevo = msg
                     nombre = curso_nuevo["name"]
                     if nombre in curso_index:
@@ -476,7 +537,6 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                         estado["courses"][idx] = curso_nuevo
                         estado["courses"][idx]["_cargando"] = False
                     else:
-                        # Curso nuevo que no estaba en caché
                         estado["courses"].append(curso_nuevo)
                         curso_index[nombre] = len(estado["courses"]) - 1
                     poblar_arbol(search_var.get())
@@ -488,12 +548,12 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
                     app.after(3000, lambda: actualizando_label.configure(text=""))
                     poblar_arbol(search_var.get())
                     actualizar_cards()
-                    return  # parar el polling
+                    return
 
                 elif kind == "error":
                     curso_estado_label.configure(text="⚠️ Error al actualizar")
                     actualizando_label.configure(text="⚠️ Error al actualizar",
-                                                  text_color="#ef5350")
+                                                  text_color=C["txt_err"])
                     return
 
         except queue_module.Empty:
@@ -504,10 +564,10 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
     if progreso_queue:
         app.after(200, poll_progreso)
 
-    # === PANEL DETALLE ===
+    # ══ PANEL DETALLE ══
     detail_frame = ctk.CTkFrame(paned, corner_radius=14,
-                                fg_color=("white", "#1b2a4a"),
-                                border_width=1, border_color=("gray80", "#2a3f6f"))
+                                fg_color=C["bg_detail"],
+                                border_width=1, border_color=C["bg_border"])
     paned.add(detail_frame)
     detail_frame.grid_rowconfigure(5, weight=1)
     detail_frame.grid_columnconfigure(0, weight=1)
@@ -518,14 +578,14 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
 
     detail_name = ctk.CTkLabel(detail_frame, text="Selecciona un elemento",
                                 font=ctk.CTkFont(size=13, weight="bold"),
-                                text_color="#4fc3f7", wraplength=320, justify="left")
+                                text_color=C["txt_accent"], wraplength=320, justify="left")
     detail_name.grid(row=1, column=0, sticky="w", padx=15, pady=(4, 2))
 
     detail_type = ctk.CTkLabel(detail_frame, text="",
-                                font=ctk.CTkFont(size=11), text_color="gray")
+                                font=ctk.CTkFont(size=11), text_color=C["txt_muted"])
     detail_type.grid(row=2, column=0, sticky="w", padx=15, pady=(0, 8))
 
-    ctk.CTkFrame(detail_frame, height=1, fg_color="#2a3f6f").grid(
+    ctk.CTkFrame(detail_frame, height=1, fg_color=C["bg_border"]).grid(
         row=3, column=0, sticky="ew", padx=15, pady=4)
 
     ctk.CTkLabel(detail_frame, text="📋  Información de la tarea:",
@@ -533,13 +593,14 @@ def lanzar_dashboard(courses, provincia_nombre, driver_quit_fn, progreso_queue=N
         row=4, column=0, sticky="w", padx=15, pady=(10, 4))
 
     notes_box = ctk.CTkTextbox(detail_frame, corner_radius=8,
-                                fg_color=("gray95", "#0f3460"),
+                                fg_color=C["bg_notes"],
                                 font=ctk.CTkFont(size=12))
     notes_box.grid(row=5, column=0, sticky="nsew", padx=15, pady=(0, 8))
 
     open_btn = ctk.CTkButton(detail_frame, text="🌐  Abrir en Moodle",
                               height=36, corner_radius=8,
-                              fg_color="#1e3a5f", hover_color="#2a4f7f",
+                              fg_color=C["bg_btn_open"],
+                              hover_color=C["bg_btn_open_hov"],
                               font=ctk.CTkFont(size=12),
                               state="disabled",
                               command=lambda: None)
