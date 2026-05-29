@@ -165,6 +165,54 @@ def main():
             carga2_win.mainloop()
 
     # 5. Polling del login
+    def poll_login_con(lq, cw, cc):
+        try:
+            while True:
+                msg = lq.get_nowait()
+                kind = msg[0]
+                if kind == "update":
+                    cw._actualizar(msg[1], msg[2] if len(msg) > 2 else "")
+                elif kind == "ok":
+                    cc()
+                    arrancar_carga_datos()
+                    return
+                elif kind == "login_error":
+                    cc()
+                    u, p = pedir_credenciales(error=True, usuario_guardado=username)
+                    if not u or not p:
+                        sys.exit("Login cancelado.")
+                    guardar_usuario(u)
+                    lq2 = queue.Queue()
+                    cw2, cc2 = mostrar_cargando("Iniciando sesión...", lq2)
+
+                    def lt(u=u, p=p):
+                        sc = MoodleScraper(moodle_url, moodle_base)
+                        scraper_holder["scraper"] = sc
+
+                        def upd(t, s=""):
+                            lq2.put(("update", t, s))
+
+                        try:
+                            sc.login(u, p, upd)
+                            lq2.put(("ok",))
+                        except LoginFallidoError:
+                            sc.quit();
+                            lq2.put(("login_error",))
+                        except Exception as e:
+                            sc.quit();
+                            lq2.put(("error", str(e)))
+
+                    threading.Thread(target=lt, daemon=True).start()
+                    cw2.after(100, lambda lq2=lq2, cw2=cw2, cc2=cc2: poll_login_con(lq2, cw2, cc2))
+                    return
+                elif kind == "error":
+                    cc()
+                    sys.exit(f"Error inesperado: {msg[1]}")
+        except queue.Empty:
+            pass
+        cw.after(100, lambda: poll_login_con(lq, cw, cc))
+
+
     def poll_login():
         try:
             while True:
@@ -179,14 +227,55 @@ def main():
                     arrancar_carga_datos()
                     return
 
+
                 elif kind == "login_error":
+
                     cerrar_carga()
+
                     u, p = pedir_credenciales(error=True, usuario_guardado=username)
+
                     if not u or not p:
                         sys.exit("Login cancelado.")
+
                     guardar_usuario(u)
-                    import os
-                    os.execv(sys.executable, [sys.executable] + sys.argv)
+
+                    login_queue2 = queue.Queue()
+
+                    carga_win2, cerrar_carga2 = mostrar_cargando("Iniciando sesión...", login_queue2)
+
+                    def login_thread2(u=u, p=p):
+
+                        scraper = MoodleScraper(moodle_url, moodle_base)
+
+                        scraper_holder["scraper"] = scraper
+
+                        def upd(titulo, sub=""):
+
+                            login_queue2.put(("update", titulo, sub))
+
+                        try:
+
+                            scraper.login(u, p, upd)
+
+                            login_queue2.put(("ok",))
+
+                        except LoginFallidoError:
+
+                            scraper.quit()
+
+                            login_queue2.put(("login_error",))
+
+                        except Exception as e:
+
+                            scraper.quit()
+
+                            login_queue2.put(("error", str(e)))
+
+                    threading.Thread(target=login_thread2, daemon=True).start()
+
+                    carga_win2.after(100, lambda: poll_login_con(login_queue2, carga_win2, cerrar_carga2))
+
+                    return
 
                 elif kind == "error":
                     cerrar_carga()
