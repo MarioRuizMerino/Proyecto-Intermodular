@@ -12,6 +12,8 @@ Para ello, estamos creando este ejecutable, que la gente se descargaría y pondr
 
 ---
 
+https://www.canva.com/design/DAHLEFSkh-A/Rd28Qcnke2qIt40YLYA5Kw/edit
+
 ## 🗂️ Estructura
 
 ```
