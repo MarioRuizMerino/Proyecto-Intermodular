@@ -12,7 +12,7 @@ Para ello, estamos creando este ejecutable, que la gente se descargaría y pondr
 
 ---
 
-https://www.canva.com/design/DAHLEFSkh-A/Rd28Qcnke2qIt40YLYA5Kw/edit
+https://canva.link/kvv0k7ygljjw0z5
 
 ## 🗂️ Estructura
 
